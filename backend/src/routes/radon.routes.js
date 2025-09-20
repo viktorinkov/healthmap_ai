@@ -176,8 +176,8 @@ router.get('/demo/history/:pinId', async (req, res) => {
 
     const daysNum = parseInt(days);
 
-    // For demo purposes, always return sample data
-    const history = await radonService.generateSampleRadonHistory(daysNum, pinId);
+    // Use real historical data when available, fallback to sample data
+    const history = await radonService.getRadonHistory(parseInt(pinId), daysNum);
 
     res.json({
       success: true,

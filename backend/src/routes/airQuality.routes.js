@@ -78,8 +78,8 @@ router.get('/demo/history/:pinId',
       const { pinId } = req.params;
       const days = parseInt(req.query.days) || 7;
 
-      // For demo purposes, always return sample data
-      const history = await airQualityService.generateSampleAirQualityHistory(days, pinId);
+      // Use real historical data when available, fallback to sample data
+      const history = await airQualityService.getAirQualityHistory(parseInt(pinId), days);
       res.json(history);
     } catch (error) {
       next(error);

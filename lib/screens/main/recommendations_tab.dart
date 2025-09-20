@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:location/location.dart';
 import '../../models/user_health_profile.dart';
 import '../../models/air_quality.dart';
 import '../../models/pinned_location.dart';
 import '../../services/database_service.dart';
 import '../../services/gemini_service.dart';
 import '../../services/unified_air_quality_service.dart';
+import '../../services/api_service.dart';
 import '../../widgets/unified_location_card.dart';
 
 class RecommendationsTab extends StatefulWidget {
@@ -22,6 +24,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
   List<String> _personalizedRecommendations = [];
   bool _isLoading = true;
   bool _isGeneratingRecommendations = false;
+  bool _isLoadingCurrentLocation = false;
 
   @override
   void initState() {
@@ -58,22 +61,161 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
   }
 
   Future<void> _loadAirQualityForLocations() async {
-    _locationAirQuality = await UnifiedAirQualityService.loadAirQualityForLocations(
+    _locationAirQuality = await UnifiedAirQualityService.getAirQualityForAllLocations(
       _pinnedLocations,
       userProfile: _userProfile,
     );
   }
 
   Future<void> _loadCurrentLocationAirQuality() async {
-    // Generate sample current location air quality data
-    // In a real app, this would use GPS and real API data
-    _currentLocationAirQuality = UnifiedAirQualityService.generateCurrentLocationAirQualityData(
-      userProfile: _userProfile,
-    );
+    setState(() {
+      _isLoadingCurrentLocation = true;
+    });
+
+    try {
+      // Get current location
+      final location = Location();
+
+      // Check if location service is enabled
+      bool serviceEnabled = await location.serviceEnabled();
+      if (!serviceEnabled) {
+        serviceEnabled = await location.requestService();
+        if (!serviceEnabled) {
+          // Location service not available
+          setState(() {
+            _currentLocationAirQuality = null;
+            _isLoadingCurrentLocation = false;
+          });
+          return;
+        }
+      }
+
+      // Check location permissions
+      PermissionStatus permissionGranted = await location.hasPermission();
+      if (permissionGranted == PermissionStatus.denied) {
+        permissionGranted = await location.requestPermission();
+        if (permissionGranted != PermissionStatus.granted) {
+          // Permission denied
+          setState(() {
+            _currentLocationAirQuality = null;
+            _isLoadingCurrentLocation = false;
+          });
+          return;
+        }
+      }
+
+      // Get current location
+      LocationData locationData = await location.getLocation();
+
+      if (locationData.latitude != null && locationData.longitude != null) {
+        // Fetch current air quality data from API
+        debugPrint('Fetching air quality for: ${locationData.latitude}, ${locationData.longitude}');
+        final airQualityResponse = await ApiService.getCurrentAirQuality(
+          latitude: locationData.latitude!,
+          longitude: locationData.longitude!,
+        );
+        debugPrint('Air quality API response: $airQualityResponse');
+
+        // Convert API response to AirQualityData model
+        if (airQualityResponse.containsKey('error') || airQualityResponse.isEmpty) {
+          // API returned error or no data
+          setState(() {
+            _currentLocationAirQuality = null;
+            _isLoadingCurrentLocation = false;
+          });
+          return;
+        }
+
+        // Transform API response to AirQualityData format
+        final airQualityData = _transformApiResponseToAirQualityData(
+          airQualityResponse,
+          locationData.latitude!,
+          locationData.longitude!,
+        );
+
+        // Add health recommendations if user profile exists
+        final airQualityWithRecommendations = _userProfile != null
+            ? airQualityData.copyWith(
+                healthRecommendations: UnifiedAirQualityService.generateHealthRecommendations(
+                  airQualityData,
+                  _userProfile!,
+                ),
+              )
+            : airQualityData;
+
+        setState(() {
+          _currentLocationAirQuality = airQualityWithRecommendations;
+          _isLoadingCurrentLocation = false;
+        });
+      } else {
+        // Unable to get location coordinates
+        setState(() {
+          _currentLocationAirQuality = null;
+          _isLoadingCurrentLocation = false;
+        });
+      }
+    } catch (e) {
+      // Error occurred while fetching current location air quality
+      debugPrint('Error loading current location air quality: $e');
+      setState(() {
+        _currentLocationAirQuality = null;
+        _isLoadingCurrentLocation = false;
+      });
+    }
   }
 
+  double? _parseToDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value);
+    }
+    return null;
+  }
 
+  AirQualityData _transformApiResponseToAirQualityData(
+    Map<String, dynamic> apiResponse,
+    double latitude,
+    double longitude,
+  ) {
+    // Transform backend API response to AirQualityData model
+    final aqi = _parseToDouble(apiResponse['aqi']) ?? 0.0;
 
+    // Create metrics from API response
+    final metrics = AirQualityMetrics(
+      pm25: _parseToDouble(apiResponse['pm25']) ?? 0.0,
+      pm10: _parseToDouble(apiResponse['pm10']) ?? 0.0,
+      o3: _parseToDouble(apiResponse['o3']) ?? 0.0,
+      no2: _parseToDouble(apiResponse['no2']) ?? 0.0,
+      co: _parseToDouble(apiResponse['co']),
+      so2: _parseToDouble(apiResponse['so2']),
+      wildfireIndex: 0.0, // Not provided by current API
+      radon: 1.5, // Default low value for outdoor air
+      universalAqi: aqi.toInt(),
+    );
+
+    // Convert category to status
+    AirQualityStatus status;
+    if (aqi <= 50) {
+      status = AirQualityStatus.good;
+    } else if (aqi <= 100) {
+      status = AirQualityStatus.caution;
+    } else {
+      status = AirQualityStatus.avoid;
+    }
+
+    return AirQualityData(
+      id: 'current_location_${DateTime.now().millisecondsSinceEpoch}',
+      locationName: 'Current Location',
+      latitude: latitude,
+      longitude: longitude,
+      timestamp: DateTime.tryParse(apiResponse['timestamp'] ?? '') ?? DateTime.now(),
+      metrics: metrics,
+      status: status,
+      statusReason: UnifiedAirQualityService.generateStatusReason(metrics, status),
+    );
+  }
 
   Future<void> _generatePersonalizedRecommendations() async {
     if (_userProfile == null) return;
@@ -262,7 +404,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
   }
 
   Widget _buildHereAndNowRiskCard() {
-    if (_currentLocationAirQuality == null) {
+    if (_isLoadingCurrentLocation) {
       return Card(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -291,6 +433,80 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
               const SizedBox(height: 16),
               const Center(
                 child: CircularProgressIndicator(),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Text(
+                  'Getting your location...',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_currentLocationAirQuality == null) {
+      return Card(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Here & Now Risk',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.location_off,
+                      size: 48,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Location data unavailable',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Please enable location services or check permissions',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _loadCurrentLocationAirQuality,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try Again'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

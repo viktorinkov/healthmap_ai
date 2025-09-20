@@ -35,27 +35,59 @@ class _MapTabState extends State<MapTab> {
   }
 
   Future<void> _initializeData() async {
+    // Set a maximum timeout for initialization
     try {
-      // Get current location
-      await _getCurrentLocation();
-
-      // Load pinned locations
-      _pinnedLocations = await DatabaseService().getPinnedLocations();
-
-      // Load air quality data for pinned locations
-      await _loadAirQualityForLocations();
-
-      // Create markers and heatmap overlay
-      _createMarkersAndOverlays();
-
-      setState(() {
-        _isLoading = false;
-      });
+      await Future.any([
+        _doInitializeData(),
+        Future.delayed(const Duration(seconds: 10)), // 10 second timeout
+      ]);
     } catch (e) {
-      debugPrint('Error initializing map data: $e');
+      debugPrint('Initialization timeout or error: $e');
+    }
+
+    // Ensure map is shown regardless of what happens
+    if (mounted) {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _doInitializeData() async {
+    try {
+      // Get current location (critical for map display)
+      await _getCurrentLocation().timeout(const Duration(seconds: 5));
+
+      // Load pinned locations (non-critical)
+      try {
+        _pinnedLocations = await DatabaseService().getPinnedLocations().timeout(const Duration(seconds: 3));
+      } catch (e) {
+        debugPrint('Error loading pinned locations: $e');
+        _pinnedLocations = []; // Continue with empty list
+      }
+
+      // Load air quality data for pinned locations (non-critical)
+      if (_pinnedLocations.isNotEmpty) {
+        try {
+          await _loadAirQualityForLocations().timeout(const Duration(seconds: 5));
+        } catch (e) {
+          debugPrint('Error loading air quality data: $e');
+          _locationAirQuality = {}; // Continue with empty map
+        }
+      } else {
+        _locationAirQuality = {}; // No pins, no data needed
+      }
+
+      // Create markers and heatmap overlay (non-critical)
+      try {
+        _createMarkersAndOverlays();
+      } catch (e) {
+        debugPrint('Error creating markers and overlays: $e');
+        _markers = {};
+        _tileOverlays = {};
+      }
+    } catch (e) {
+      debugPrint('Error in data initialization: $e');
     }
   }
 
@@ -85,7 +117,7 @@ class _MapTabState extends State<MapTab> {
   }
 
   Future<void> _loadAirQualityForLocations() async {
-    _locationAirQuality = await UnifiedAirQualityService.loadAirQualityForLocations(
+    _locationAirQuality = await UnifiedAirQualityService.getAirQualityForAllLocations(
       _pinnedLocations,
     );
   }
