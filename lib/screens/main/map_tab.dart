@@ -6,6 +6,8 @@ import '../../models/neighborhood.dart';
 import '../../models/pinned_location.dart';
 import '../../services/fake_data_service.dart';
 import '../../services/database_service.dart';
+import '../../widgets/add_location_dialog.dart';
+import '../../widgets/pinned_location_sheet.dart';
 
 class MapTab extends StatefulWidget {
   const MapTab({Key? key}) : super(key: key);
@@ -151,7 +153,17 @@ class _MapTabState extends State<MapTab> {
   void _showPinnedLocationDetails(PinnedLocation location) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => PinnedLocationDetailsSheet(location: location),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => PinnedLocationSheet(
+        location: location,
+        onDeleted: () {
+          setState(() {
+            _pinnedLocations.removeWhere((l) => l.id == location.id);
+          });
+          _createMarkers();
+        },
+      ),
     );
   }
 
@@ -389,161 +401,4 @@ class NeighborhoodDetailsSheet extends StatelessWidget {
   }
 }
 
-class PinnedLocationDetailsSheet extends StatelessWidget {
-  final PinnedLocation location;
 
-  const PinnedLocationDetailsSheet({Key? key, required this.location}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                location.type.icon,
-                style: const TextStyle(fontSize: 24),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  location.name,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () {
-                  DatabaseService().deletePinnedLocation(location.id);
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildDetailRow('Type', location.type.displayName),
-          if (location.address != null)
-            _buildDetailRow('Address', location.address!),
-          _buildDetailRow('Added', _formatDate(location.createdAt)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-          ),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.month}/${date.day}/${date.year}';
-  }
-}
-
-class AddLocationDialog extends StatefulWidget {
-  final LatLng position;
-  final Function(PinnedLocation) onLocationAdded;
-
-  const AddLocationDialog({
-    Key? key,
-    required this.position,
-    required this.onLocationAdded,
-  }) : super(key: key);
-
-  @override
-  State<AddLocationDialog> createState() => _AddLocationDialogState();
-}
-
-class _AddLocationDialogState extends State<AddLocationDialog> {
-  final _nameController = TextEditingController();
-  LocationType _selectedType = LocationType.home;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add Location'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Location Name',
-              hintText: 'e.g., Home, Office, Gym',
-            ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<LocationType>(
-            value: _selectedType,
-            decoration: const InputDecoration(labelText: 'Type'),
-            items: LocationType.values.map((type) {
-              return DropdownMenuItem(
-                value: type,
-                child: Row(
-                  children: [
-                    Text(type.icon),
-                    const SizedBox(width: 8),
-                    Text(type.displayName),
-                  ],
-                ),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedType = value!;
-              });
-            },
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: _saveLocation,
-          child: const Text('Add'),
-        ),
-      ],
-    );
-  }
-
-  void _saveLocation() async {
-    if (_nameController.text.trim().isEmpty) return;
-
-    final location = PinnedLocation(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: _nameController.text.trim(),
-      type: _selectedType,
-      latitude: widget.position.latitude,
-      longitude: widget.position.longitude,
-      createdAt: DateTime.now(),
-    );
-
-    await DatabaseService().savePinnedLocation(location);
-    widget.onLocationAdded(location);
-
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
-  }
-}
