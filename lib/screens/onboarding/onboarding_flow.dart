@@ -9,6 +9,7 @@ import 'domestic_risks_screen.dart';
 import 'summary_screen.dart';
 import '../../models/user_health_profile.dart';
 import '../../services/database_service.dart';
+import '../../services/api_service.dart';
 
 class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({Key? key}) : super(key: key);
@@ -58,21 +59,59 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   }
 
   Future<void> _completeOnboarding() async {
-    final profile = UserHealthProfile(
-      id: 'user_profile',
-      conditions: _data.conditions,
-      ageGroup: _data.ageGroup!,
-      isPregnant: _data.isPregnant,
-      sensitivityLevel: _data.sensitivityLevel,
-      lifestyleRisks: _data.lifestyleRisks,
-      domesticRisks: _data.domesticRisks,
-      lastUpdated: DateTime.now(),
-    );
+    try {
+      final profile = UserHealthProfile(
+        id: 'user_profile',
+        conditions: _data.conditions,
+        ageGroup: _data.ageGroup!,
+        isPregnant: _data.isPregnant,
+        sensitivityLevel: _data.sensitivityLevel,
+        lifestyleRisks: _data.lifestyleRisks,
+        domesticRisks: _data.domesticRisks,
+        lastUpdated: DateTime.now(),
+      );
 
-    await DatabaseService().saveUserHealthProfile(profile);
+      // Save profile locally for offline access
+      await DatabaseService().saveUserHealthProfile(profile);
 
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/main');
+      // Convert profile to backend format and save to backend
+      if (ApiService.isAuthenticated) {
+        final profileData = {
+          'age': _data.ageGroup == AgeGroup.child
+            ? 8
+            : _data.ageGroup == AgeGroup.adult
+              ? 35
+              : 70,
+          'has_respiratory_condition': _data.conditions.contains(HealthCondition.asthma) ||
+                                        _data.conditions.contains(HealthCondition.copd) ||
+                                        _data.conditions.contains(HealthCondition.lungDisease),
+          'has_heart_condition': _data.conditions.contains(HealthCondition.heartDisease),
+          'has_allergies': false,
+          'is_elderly': _data.ageGroup == AgeGroup.olderAdult,
+          'is_child': _data.ageGroup == AgeGroup.child,
+          'is_pregnant': _data.isPregnant,
+          'exercises_outdoors': _data.lifestyleRisks.contains(LifestyleRisk.athlete) ||
+                                _data.lifestyleRisks.contains(LifestyleRisk.outdoorWorker),
+          'medications': _data.conditions.isNotEmpty ? 'Multiple health conditions requiring medication' : null,
+          'notes': 'Profile created through onboarding flow'
+        };
+
+        await ApiService.updateMedicalProfile(profileData);
+        await ApiService.completeOnboarding();
+      }
+
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/main');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to complete onboarding: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 

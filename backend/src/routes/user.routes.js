@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/profile', authMiddleware, async (req, res, next) => {
   try {
     const user = await getOne(
-      'SELECT id, email, name, created_at FROM users WHERE id = ?',
+      'SELECT id, username, created_at, onboarding_completed FROM users WHERE id = ?',
       [req.user.id]
     );
 
@@ -30,29 +30,15 @@ router.get('/profile', authMiddleware, async (req, res, next) => {
 // Update user profile
 router.put('/profile',
   authMiddleware,
-  [
-    body('name').optional().trim(),
-    body('email').optional().isEmail().normalizeEmail()
-  ],
   async (req, res, next) => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      const { name, email } = req.body;
+      const { username } = req.body;
       const updates = [];
       const params = [];
 
-      if (name !== undefined) {
-        updates.push('name = ?');
-        params.push(name);
-      }
-
-      if (email !== undefined) {
-        updates.push('email = ?');
-        params.push(email);
+      if (username !== undefined) {
+        updates.push('username = ?');
+        params.push(username);
       }
 
       if (updates.length > 0) {
@@ -93,24 +79,8 @@ router.get('/medical-profile', authMiddleware, async (req, res, next) => {
 // Create or update medical profile
 router.post('/medical-profile',
   authMiddleware,
-  [
-    body('age').optional().isInt({ min: 0, max: 150 }),
-    body('has_respiratory_condition').optional().isBoolean(),
-    body('has_heart_condition').optional().isBoolean(),
-    body('has_allergies').optional().isBoolean(),
-    body('is_elderly').optional().isBoolean(),
-    body('is_child').optional().isBoolean(),
-    body('is_pregnant').optional().isBoolean(),
-    body('exercises_outdoors').optional().isBoolean(),
-    body('medications').optional().trim(),
-    body('notes').optional().trim()
-  ],
   async (req, res, next) => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
 
       const existingProfile = await getOne(
         'SELECT id FROM medical_profiles WHERE user_id = ?',

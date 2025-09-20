@@ -9,38 +9,28 @@ const router = express.Router();
 
 // Register new user
 router.post('/register',
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('password').isLength({ min: 6 }),
-    body('name').optional().trim()
-  ],
   async (req, res, next) => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      const { email, password, name } = req.body;
+      const { username, password } = req.body;
 
       // Check if user already exists
-      const existingUser = await getOne('SELECT id FROM users WHERE email = ?', [email]);
+      const existingUser = await getOne('SELECT id FROM users WHERE username = ?', [username]);
       if (existingUser) {
         return res.status(409).json({ error: 'User already exists' });
       }
 
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
+      // Hash password (or store as plain text if no validation required)
+      const hashedPassword = await bcrypt.hash(password || '', 10);
 
       // Create user
       const result = await runQuery(
-        'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
-        [email, hashedPassword, name]
+        'INSERT INTO users (username, password) VALUES (?, ?)',
+        [username || '', hashedPassword]
       );
 
       // Generate token
       const token = jwt.sign(
-        { userId: result.id, email },
+        { userId: result.id, username: username || '' },
         process.env.JWT_SECRET,
         { expiresIn: '30d' }
       );
@@ -58,8 +48,8 @@ router.post('/register',
         message: 'User created successfully',
         user: {
           id: result.id,
-          email,
-          name
+          username: username || '',
+          onboarding_completed: false
         },
         token
       });
@@ -71,38 +61,29 @@ router.post('/register',
 
 // Login
 router.post('/login',
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('password').notEmpty()
-  ],
   async (req, res, next) => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      const { email, password } = req.body;
+      const { username, password } = req.body;
 
       // Find user
       const user = await getOne(
-        'SELECT id, email, name, password FROM users WHERE email = ?',
-        [email]
+        'SELECT id, username, password, onboarding_completed FROM users WHERE username = ?',
+        [username || '']
       );
 
       if (!user) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      // Verify password
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+      // Verify password (allow empty passwords)
+      const isPasswordValid = await bcrypt.compare(password || '', user.password);
       if (!isPasswordValid) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
       // Generate token
       const token = jwt.sign(
-        { userId: user.id, email: user.email },
+        { userId: user.id, username: user.username },
         process.env.JWT_SECRET,
         { expiresIn: '30d' }
       );
@@ -120,8 +101,8 @@ router.post('/login',
         message: 'Login successful',
         user: {
           id: user.id,
-          email: user.email,
-          name: user.name
+          username: user.username,
+          onboarding_completed: !!user.onboarding_completed
         },
         token
       });
@@ -159,7 +140,7 @@ router.post('/refresh', authMiddleware, async (req, res, next) => {
 
     // Generate new token
     const newToken = jwt.sign(
-      { userId: req.user.id, email: req.user.email },
+      { userId: req.user.id, username: req.user.username },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -176,6 +157,22 @@ router.post('/refresh', authMiddleware, async (req, res, next) => {
     res.json({
       message: 'Token refreshed successfully',
       token: newToken
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Complete onboarding
+router.post('/complete-onboarding', authMiddleware, async (req, res, next) => {
+  try {
+    await runQuery(
+      'UPDATE users SET onboarding_completed = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [req.user.id]
+    );
+
+    res.json({
+      message: 'Onboarding completed successfully'
     });
   } catch (error) {
     next(error);

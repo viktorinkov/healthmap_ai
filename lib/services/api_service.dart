@@ -102,6 +102,15 @@ class ApiService {
     await clearToken();
   }
 
+  static Future<Map<String, dynamic>> completeOnboarding() async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/complete-onboarding'),
+      headers: _getHeaders(),
+    );
+
+    return jsonDecode(response.body);
+  }
+
   // User profile endpoints
   static Future<Map<String, dynamic>> getUserProfile() async {
     final response = await http.get(
@@ -109,7 +118,11 @@ class ApiService {
       headers: _getHeaders(),
     );
 
-    return jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to get user profile: ${response.statusCode}');
+    }
   }
 
   static Future<Map<String, dynamic>> updateMedicalProfile(

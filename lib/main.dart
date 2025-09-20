@@ -79,26 +79,52 @@ class AppInitializer extends StatefulWidget {
 
 class _AppInitializerState extends State<AppInitializer> {
   bool _isLoading = true;
+  bool _isAuthenticated = false;
   bool _hasCompletedOnboarding = false;
 
   @override
   void initState() {
     super.initState();
-    _checkOnboardingStatus();
+    _checkAuthenticationStatus();
   }
 
-  Future<void> _checkOnboardingStatus() async {
+  Future<void> _checkAuthenticationStatus() async {
     try {
-      // Check if user has completed onboarding by looking for their profile
-      final userProfile = await DatabaseService().getUserHealthProfile('user_profile');
+      // Check if user has a valid authentication token
+      if (ApiService.isAuthenticated) {
+        // Verify token is still valid by making a request to the backend
+        try {
+          final userProfile = await ApiService.getUserProfile();
+          final user = userProfile['user'];
+          final onboardingCompleted = (user?['onboarding_completed'] == 1) || (user?['onboarding_completed'] == true);
 
-      setState(() {
-        _hasCompletedOnboarding = userProfile != null;
-        _isLoading = false;
-      });
+          setState(() {
+            _isAuthenticated = true;
+            _hasCompletedOnboarding = onboardingCompleted;
+            _isLoading = false;
+          });
+        } catch (e) {
+          // Token is invalid, clear it and show login
+          debugPrint('Token invalid, clearing authentication: $e');
+          await ApiService.clearToken();
+          setState(() {
+            _isAuthenticated = false;
+            _hasCompletedOnboarding = false;
+            _isLoading = false;
+          });
+        }
+      } else {
+        // No token found, show login
+        setState(() {
+          _isAuthenticated = false;
+          _hasCompletedOnboarding = false;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      debugPrint('Error checking onboarding status: $e');
+      debugPrint('Error checking authentication status: $e');
       setState(() {
+        _isAuthenticated = false;
         _hasCompletedOnboarding = false;
         _isLoading = false;
       });
@@ -111,8 +137,15 @@ class _AppInitializerState extends State<AppInitializer> {
       return const SplashScreen();
     }
 
-    // Show login screen as the first screen
-    return const LoginScreen();
+    if (!_isAuthenticated) {
+      return const LoginScreen();
+    }
+
+    if (!_hasCompletedOnboarding) {
+      return const OnboardingFlow();
+    }
+
+    return const HomeScreen();
   }
 }
 
