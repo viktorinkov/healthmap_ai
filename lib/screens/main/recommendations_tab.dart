@@ -6,7 +6,7 @@ import '../../models/pinned_location.dart';
 import '../../services/database_service.dart';
 import '../../services/gemini_service.dart';
 import '../../services/unified_air_quality_service.dart';
-import '../../services/api_service.dart';
+import '../../services/air_quality_api_service.dart';
 import '../../widgets/unified_location_card.dart';
 
 class RecommendationsTab extends StatefulWidget {
@@ -108,16 +108,15 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
       LocationData locationData = await location.getLocation();
 
       if (locationData.latitude != null && locationData.longitude != null) {
-        // Fetch current air quality data from API
+        // Fetch current air quality data from Google API
         debugPrint('Fetching air quality for: ${locationData.latitude}, ${locationData.longitude}');
-        final airQualityResponse = await ApiService.getCurrentAirQuality(
-          latitude: locationData.latitude!,
-          longitude: locationData.longitude!,
+        final airQualityData = await AirQualityApiService.getAirQuality(
+          locationData.latitude!,
+          locationData.longitude!,
+          locationName: 'Current Location',
         );
-        debugPrint('Air quality API response: $airQualityResponse');
 
-        // Convert API response to AirQualityData model
-        if (airQualityResponse.containsKey('error') || airQualityResponse.isEmpty) {
+        if (airQualityData == null) {
           // API returned error or no data
           setState(() {
             _currentLocationAirQuality = null;
@@ -126,19 +125,15 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
           return;
         }
 
-        // Transform API response to AirQualityData format
-        final airQualityData = _transformApiResponseToAirQualityData(
-          airQualityResponse,
-          locationData.latitude!,
-          locationData.longitude!,
-        );
-
-        // Add health recommendations if user profile exists
+        // Add personalized health recommendations if user profile exists
         final airQualityWithRecommendations = _userProfile != null
             ? airQualityData.copyWith(
-                healthRecommendations: UnifiedAirQualityService.generateHealthRecommendations(
-                  airQualityData,
-                  _userProfile!,
+                healthRecommendations: _mergeHealthRecommendations(
+                  airQualityData.healthRecommendations,
+                  UnifiedAirQualityService.generateHealthRecommendations(
+                    airQualityData,
+                    _userProfile!,
+                  ),
                 ),
               )
             : airQualityData;
@@ -164,57 +159,29 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     }
   }
 
-  double? _parseToDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) {
-      return double.tryParse(value);
-    }
-    return null;
-  }
-
-  AirQualityData _transformApiResponseToAirQualityData(
-    Map<String, dynamic> apiResponse,
-    double latitude,
-    double longitude,
+  List<HealthRecommendationTag> _mergeHealthRecommendations(
+    List<HealthRecommendationTag>? googleRecommendations,
+    List<HealthRecommendationTag> personalizedRecommendations,
   ) {
-    // Transform backend API response to AirQualityData model
-    final aqi = _parseToDouble(apiResponse['aqi']) ?? 0.0;
+    final merged = <HealthRecommendationTag>[];
 
-    // Create metrics from API response
-    final metrics = AirQualityMetrics(
-      pm25: _parseToDouble(apiResponse['pm25']) ?? 0.0,
-      pm10: _parseToDouble(apiResponse['pm10']) ?? 0.0,
-      o3: _parseToDouble(apiResponse['o3']) ?? 0.0,
-      no2: _parseToDouble(apiResponse['no2']) ?? 0.0,
-      co: _parseToDouble(apiResponse['co']),
-      so2: _parseToDouble(apiResponse['so2']),
-      wildfireIndex: 0.0, // Not provided by current API
-      radon: 1.5, // Default low value for outdoor air
-      universalAqi: aqi.toInt(),
-    );
-
-    // Convert category to status
-    AirQualityStatus status;
-    if (aqi <= 50) {
-      status = AirQualityStatus.good;
-    } else if (aqi <= 100) {
-      status = AirQualityStatus.caution;
-    } else {
-      status = AirQualityStatus.avoid;
+    // Add Google API recommendations first (these are research-backed)
+    if (googleRecommendations != null) {
+      merged.addAll(googleRecommendations);
     }
 
-    return AirQualityData(
-      id: 'current_location_${DateTime.now().millisecondsSinceEpoch}',
-      locationName: 'Current Location',
-      latitude: latitude,
-      longitude: longitude,
-      timestamp: DateTime.tryParse(apiResponse['timestamp'] ?? '') ?? DateTime.now(),
-      metrics: metrics,
-      status: status,
-      statusReason: UnifiedAirQualityService.generateStatusReason(metrics, status),
-    );
+    // Add personalized recommendations that don't conflict
+    for (final personalizedRec in personalizedRecommendations) {
+      // Check if we already have a recommendation for this population
+      final hasExisting = merged.any((existing) =>
+        existing.population == personalizedRec.population);
+
+      if (!hasExisting) {
+        merged.add(personalizedRec);
+      }
+    }
+
+    return merged;
   }
 
   Future<void> _generatePersonalizedRecommendations() async {

@@ -106,17 +106,76 @@ class AirQualityApiService {
 
       final aqiValue = (universalAqi['aqi'] as num?)?.toDouble() ?? 0.0;
 
+      // Parse additional pollutants if available
+      double? co, so2, nox, no, nh3, c6h6, ox, nmhc, trs;
+
+      if (pollutants != null) {
+        for (final pollutant in pollutants) {
+          final code = pollutant['code'] as String?;
+          final concentration = pollutant['concentration']?['value'] as double?;
+
+          if (concentration != null) {
+            switch (code) {
+              case 'co':
+                co = concentration;
+                break;
+              case 'so2':
+                so2 = concentration;
+                break;
+              case 'nox':
+                nox = concentration;
+                break;
+              case 'no':
+                no = concentration;
+                break;
+              case 'nh3':
+                nh3 = concentration;
+                break;
+              case 'c6h6':
+                c6h6 = concentration;
+                break;
+              case 'ox':
+                ox = concentration;
+                break;
+              case 'nmhc':
+                nmhc = concentration;
+                break;
+              case 'trs':
+                trs = concentration;
+                break;
+            }
+          }
+        }
+      }
+
       final metrics = AirQualityMetrics(
         pm25: pm25,
         pm10: pm10,
         o3: o3,
         no2: no2,
+        co: co,
+        so2: so2,
+        nox: nox,
+        no: no,
+        nh3: nh3,
+        c6h6: c6h6,
+        ox: ox,
+        nmhc: nmhc,
+        trs: trs,
         wildfireIndex: 0.0, // Not available in API
         radon: 0.0, // Not available in API
+        universalAqi: aqiValue.toInt(),
       );
 
       final status = _getStatusFromAqi(aqiValue);
       final statusReason = universalAqi['displayName'] ?? 'Air quality assessment based on current conditions';
+
+      // Parse health recommendations if available
+      List<HealthRecommendationTag>? healthRecommendations;
+      final healthData = data['healthRecommendations'];
+      if (healthData != null) {
+        healthRecommendations = _parseHealthRecommendations(healthData);
+      }
 
       return AirQualityData(
         id: 'api_${latitude}_${longitude}_${DateTime.now().millisecondsSinceEpoch}',
@@ -127,6 +186,7 @@ class AirQualityApiService {
         metrics: metrics,
         status: status,
         statusReason: statusReason,
+        healthRecommendations: healthRecommendations,
       );
     } catch (e) {
       print('Error parsing air quality response: $e');
@@ -142,6 +202,102 @@ class AirQualityApiService {
       return AirQualityStatus.caution;
     } else {
       return AirQualityStatus.avoid;
+    }
+  }
+
+  /// Parse health recommendations from Google API response
+  static List<HealthRecommendationTag> _parseHealthRecommendations(Map<String, dynamic> healthData) {
+    final recommendations = <HealthRecommendationTag>[];
+
+    try {
+      // Parse general population recommendations
+      final generalPopulation = healthData['generalPopulation'];
+      if (generalPopulation != null) {
+        recommendations.add(HealthRecommendationTag(
+          population: HealthPopulation.general,
+          recommendation: generalPopulation['recommendation'] ?? 'No specific recommendations at this time.',
+          level: _parseHealthAdviceLevel(generalPopulation['level']),
+        ));
+      }
+
+      // Parse elderly recommendations
+      final elderly = healthData['elderly'];
+      if (elderly != null) {
+        recommendations.add(HealthRecommendationTag(
+          population: HealthPopulation.elderly,
+          recommendation: elderly['recommendation'] ?? 'No specific recommendations at this time.',
+          level: _parseHealthAdviceLevel(elderly['level']),
+        ));
+      }
+
+      // Parse lung disease at-risk group
+      final lungDiseaseAtRisk = healthData['lungDiseaseAtRisk'];
+      if (lungDiseaseAtRisk != null) {
+        recommendations.add(HealthRecommendationTag(
+          population: HealthPopulation.lungDisease,
+          recommendation: lungDiseaseAtRisk['recommendation'] ?? 'No specific recommendations at this time.',
+          level: _parseHealthAdviceLevel(lungDiseaseAtRisk['level']),
+        ));
+      }
+
+      // Parse heart disease at-risk group
+      final heartDiseaseAtRisk = healthData['heartDiseaseAtRisk'];
+      if (heartDiseaseAtRisk != null) {
+        recommendations.add(HealthRecommendationTag(
+          population: HealthPopulation.heartDisease,
+          recommendation: heartDiseaseAtRisk['recommendation'] ?? 'No specific recommendations at this time.',
+          level: _parseHealthAdviceLevel(heartDiseaseAtRisk['level']),
+        ));
+      }
+
+      // Parse athletes recommendations
+      final athletes = healthData['athletes'];
+      if (athletes != null) {
+        recommendations.add(HealthRecommendationTag(
+          population: HealthPopulation.athletes,
+          recommendation: athletes['recommendation'] ?? 'No specific recommendations at this time.',
+          level: _parseHealthAdviceLevel(athletes['level']),
+        ));
+      }
+
+      // Parse pregnant women recommendations
+      final pregnantWomen = healthData['pregnantWomen'];
+      if (pregnantWomen != null) {
+        recommendations.add(HealthRecommendationTag(
+          population: HealthPopulation.pregnantWomen,
+          recommendation: pregnantWomen['recommendation'] ?? 'No specific recommendations at this time.',
+          level: _parseHealthAdviceLevel(pregnantWomen['level']),
+        ));
+      }
+
+      // Parse children recommendations
+      final children = healthData['children'];
+      if (children != null) {
+        recommendations.add(HealthRecommendationTag(
+          population: HealthPopulation.children,
+          recommendation: children['recommendation'] ?? 'No specific recommendations at this time.',
+          level: _parseHealthAdviceLevel(children['level']),
+        ));
+      }
+
+    } catch (e) {
+      print('Error parsing health recommendations: $e');
+    }
+
+    return recommendations;
+  }
+
+  /// Parse health advice level from API response
+  static HealthAdviceLevel _parseHealthAdviceLevel(String? level) {
+    switch (level?.toLowerCase()) {
+      case 'safe':
+        return HealthAdviceLevel.safe;
+      case 'caution':
+        return HealthAdviceLevel.caution;
+      case 'avoid':
+        return HealthAdviceLevel.avoid;
+      default:
+        return HealthAdviceLevel.safe;
     }
   }
 

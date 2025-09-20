@@ -249,19 +249,31 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
   Widget _buildPollutantGrid() {
     final metrics = widget.airQuality!.metrics;
     final pollutants = [
-      _PollutantInfo('PM2.5', metrics.pm25, 'μg/m³'),
-      _PollutantInfo('PM10', metrics.pm10, 'μg/m³'),
-      _PollutantInfo('O₃', metrics.o3, 'ppb'),
-      _PollutantInfo('NO₂', metrics.no2, 'ppb'),
-      if (metrics.co != null) _PollutantInfo('CO', metrics.co!, 'ppb'),
-      if (metrics.so2 != null) _PollutantInfo('SO₂', metrics.so2!, 'ppb'),
+      // Core pollutants (always present)
+      _PollutantInfo('PM2.5', metrics.pm25, 'μg/m³', true),
+      _PollutantInfo('PM10', metrics.pm10, 'μg/m³', true),
+      _PollutantInfo('O₃', metrics.o3, 'ppb', true),
+      _PollutantInfo('NO₂', metrics.no2, 'ppb', true),
+      // Optional pollutants
+      _PollutantInfo('CO', metrics.co, 'ppb', metrics.co != null),
+      _PollutantInfo('SO₂', metrics.so2, 'ppb', metrics.so2 != null),
+      _PollutantInfo('NOx', metrics.nox, 'ppb', metrics.nox != null),
+      _PollutantInfo('NO', metrics.no, 'ppb', metrics.no != null),
+      _PollutantInfo('NH₃', metrics.nh3, 'ppb', metrics.nh3 != null),
+      _PollutantInfo('C₆H₆', metrics.c6h6, 'μg/m³', metrics.c6h6 != null),
+      _PollutantInfo('Ox', metrics.ox, 'ppb', metrics.ox != null),
+      _PollutantInfo('NMHC', metrics.nmhc, 'ppb', metrics.nmhc != null),
+      _PollutantInfo('TRS', metrics.trs, 'μg/m³', metrics.trs != null),
+      // Additional metrics
+      _PollutantInfo('Wildfire Index', metrics.wildfireIndex, '', true),
+      _PollutantInfo('Radon', metrics.radon, 'pCi/L', true),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Pollutants',
+          'Air Quality Metrics',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
             color: widget.isCurrentLocation
@@ -280,23 +292,35 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
   }
 
   Widget _buildPollutantChip(_PollutantInfo pollutant) {
+    final isAvailable = pollutant.isAvailable;
+    final displayValue = isAvailable
+        ? '${pollutant.value?.toStringAsFixed(1) ?? '0.0'} ${pollutant.unit}'
+        : 'N/A';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: widget.isCurrentLocation
-          ? Theme.of(context).colorScheme.surface.withValues(alpha: 0.7)
-          : Theme.of(context).colorScheme.surfaceContainer,
+        color: isAvailable
+            ? (widget.isCurrentLocation
+                ? Theme.of(context).colorScheme.surface.withValues(alpha: 0.7)
+                : Theme.of(context).colorScheme.surfaceContainer)
+            : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
+          color: isAvailable
+              ? Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2)
+              : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
         ),
       ),
       child: Text(
-        '${pollutant.name}: ${pollutant.value.toStringAsFixed(1)} ${pollutant.unit}',
+        '${pollutant.name}: $displayValue',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: widget.isCurrentLocation
-            ? Theme.of(context).colorScheme.onSecondaryContainer
-            : Theme.of(context).colorScheme.onSurface,
+          color: isAvailable
+              ? (widget.isCurrentLocation
+                  ? Theme.of(context).colorScheme.onSecondaryContainer
+                  : Theme.of(context).colorScheme.onSurface)
+              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          fontStyle: isAvailable ? FontStyle.normal : FontStyle.italic,
         ),
       ),
     );
@@ -458,8 +482,9 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
 
 class _PollutantInfo {
   final String name;
-  final double value;
+  final double? value;
   final String unit;
+  final bool isAvailable;
 
-  _PollutantInfo(this.name, this.value, this.unit);
+  _PollutantInfo(this.name, this.value, this.unit, this.isAvailable);
 }

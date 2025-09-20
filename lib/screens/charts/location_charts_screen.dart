@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../../models/pinned_location.dart';
-import '../../services/api_service.dart';
+import '../../models/air_quality.dart';
+import '../../services/air_quality_api_service.dart';
 
 class LocationChartsScreen extends StatefulWidget {
   final PinnedLocation location;
@@ -17,156 +17,169 @@ class LocationChartsScreen extends StatefulWidget {
 
 class _LocationChartsScreenState extends State<LocationChartsScreen> {
   bool _isLoading = true;
-  Map<String, List<HistoricalDataPoint>> _historicalData = {};
+  AirQualityData? _currentAirQuality;
 
   @override
   void initState() {
     super.initState();
-    _loadHistoricalData();
+    _loadCurrentAirQuality();
   }
 
-  Future<void> _loadHistoricalData() async {
+  Future<void> _loadCurrentAirQuality() async {
     try {
       setState(() {
         _isLoading = true;
       });
 
-      // Fetch 7 days of historical data from backend
-      final pinId = int.tryParse(widget.location.id) ?? 0;
-      final airQualityHistory = await ApiService.getAirQualityHistory(
-        pinId: pinId,
-        days: 7
+      // Get real-time air quality data from Google API
+      final airQuality = await AirQualityApiService.getAirQuality(
+        widget.location.latitude,
+        widget.location.longitude,
+        locationName: widget.location.name,
       );
-      final weatherHistory = await ApiService.getWeatherHistory(
-        pinId: pinId,
-        days: 7
-      );
-      final radonHistory = await ApiService.getRadonHistory(
-        pinId: pinId,
-        days: 7
-      );
-
-      _historicalData = {
-        'airQuality': _parseAirQualityHistory(airQualityHistory),
-        'weather': _parseWeatherHistory(weatherHistory),
-        'radon': _parseRadonHistory(radonHistory),
-      };
 
       setState(() {
+        _currentAirQuality = airQuality;
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint('Error loading historical data: $e');
+      debugPrint('Error loading current air quality: $e');
       setState(() {
+        _currentAirQuality = null;
         _isLoading = false;
       });
     }
   }
 
-  List<HistoricalDataPoint> _parseAirQualityHistory(List<dynamic> data) {
-    return data.map((item) {
-      return HistoricalDataPoint(
-        timestamp: DateTime.parse(item['timestamp']),
-        aqi: item['aqi']?.toDouble() ?? 0.0,
-        pm25: item['pm25']?.toDouble() ?? 0.0,
-        pm10: item['pm10']?.toDouble() ?? 0.0,
-        ozone: item['ozone']?.toDouble() ?? 0.0,
-      );
-    }).toList();
+  // Color helper methods
+  Color _getStatusColor(AirQualityStatus status) {
+    switch (status) {
+      case AirQualityStatus.good:
+        return Colors.green;
+      case AirQualityStatus.caution:
+        return Colors.orange;
+      case AirQualityStatus.avoid:
+        return Colors.red;
+    }
   }
 
-  List<HistoricalDataPoint> _parseWeatherHistory(List<dynamic> data) {
-    return data.map((item) {
-      return HistoricalDataPoint(
-        timestamp: DateTime.parse(item['timestamp']),
-        temperature: item['temperature']?.toDouble() ?? 0.0,
-        humidity: item['humidity']?.toDouble() ?? 0.0,
-        uvIndex: item['uv_index']?.toDouble() ?? 0.0,
-        windSpeed: item['wind_speed']?.toDouble() ?? 0.0,
-      );
-    }).toList();
+  Color _getPM25Color(double value) {
+    if (value <= 12) return Colors.green;
+    if (value <= 35) return Colors.yellow[700]!;
+    if (value <= 55) return Colors.orange;
+    if (value <= 150) return Colors.red;
+    return Colors.purple;
   }
 
-  List<HistoricalDataPoint> _parseRadonHistory(List<dynamic> data) {
-    return data.map((item) {
-      return HistoricalDataPoint(
-        timestamp: DateTime.parse(item['timestamp']),
-        radonLevel: item['radon_level']?.toDouble() ?? 0.0,
-      );
-    }).toList();
+  Color _getPM10Color(double value) {
+    if (value <= 54) return Colors.green;
+    if (value <= 154) return Colors.yellow[700]!;
+    if (value <= 254) return Colors.orange;
+    if (value <= 354) return Colors.red;
+    return Colors.purple;
+  }
+
+  Color _getOzoneColor(double value) {
+    if (value <= 70) return Colors.green;
+    if (value <= 85) return Colors.yellow[700]!;
+    if (value <= 105) return Colors.orange;
+    if (value <= 200) return Colors.red;
+    return Colors.purple;
+  }
+
+  Color _getNO2Color(double value) {
+    if (value <= 53) return Colors.green;
+    if (value <= 100) return Colors.yellow[700]!;
+    if (value <= 360) return Colors.orange;
+    if (value <= 649) return Colors.red;
+    return Colors.purple;
+  }
+
+  Color _getCOColor(double value) {
+    if (value <= 4400) return Colors.green;
+    if (value <= 9400) return Colors.yellow[700]!;
+    if (value <= 12400) return Colors.orange;
+    if (value <= 15400) return Colors.red;
+    return Colors.purple;
+  }
+
+  Color _getSO2Color(double value) {
+    if (value <= 35) return Colors.green;
+    if (value <= 75) return Colors.yellow[700]!;
+    if (value <= 185) return Colors.orange;
+    if (value <= 304) return Colors.red;
+    return Colors.purple;
+  }
+
+  Color _getRecommendationLevelColor(HealthAdviceLevel level) {
+    switch (level) {
+      case HealthAdviceLevel.safe:
+        return Colors.green;
+      case HealthAdviceLevel.caution:
+        return Colors.orange;
+      case HealthAdviceLevel.avoid:
+        return Colors.red;
+    }
+  }
+
+  int _getPollutantLevel(String name, double value) {
+    switch (name) {
+      case 'PM2.5':
+        return ((value / 150) * 100).clamp(0, 100).round();
+      case 'PM10':
+        return ((value / 354) * 100).clamp(0, 100).round();
+      case 'Ozone':
+        return ((value / 200) * 100).clamp(0, 100).round();
+      case 'NO2':
+        return ((value / 649) * 100).clamp(0, 100).round();
+      case 'CO':
+        return ((value / 15400) * 100).clamp(0, 100).round();
+      case 'SO2':
+        return ((value / 304) * 100).clamp(0, 100).round();
+      default:
+        return (value.clamp(0, 100)).round();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.location.name} - Charts'),
+        title: Text('${widget.location.name} - Current Data'),
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadCurrentAirQuality,
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildLocationHeader(),
-                  const SizedBox(height: 24),
-
-                  if (_historicalData['airQuality']?.isNotEmpty == true) ...[
-                    _buildChartCard(
-                      'Air Quality Index (AQI)',
-                      Icons.air,
-                      _buildAQIChart(),
+          : _currentAirQuality == null
+              ? _buildNoDataCard()
+              : RefreshIndicator(
+                  onRefresh: _loadCurrentAirQuality,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLocationHeader(),
+                        const SizedBox(height: 24),
+                        _buildCurrentDataOverview(),
+                        const SizedBox(height: 16),
+                        _buildPollutantCards(),
+                        const SizedBox(height: 16),
+                        if (_currentAirQuality!.healthRecommendations?.isNotEmpty == true)
+                          _buildHealthRecommendationsCard(),
+                        const SizedBox(height: 16),
+                        _buildHistoricalDataMessage(),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-
-                    _buildChartCard(
-                      'PM2.5 Levels',
-                      Icons.blur_on,
-                      _buildPM25Chart(),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  if (_historicalData['weather']?.isNotEmpty == true) ...[
-                    _buildChartCard(
-                      'Temperature',
-                      Icons.thermostat,
-                      _buildTemperatureChart(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildChartCard(
-                      'Humidity',
-                      Icons.water_drop,
-                      _buildHumidityChart(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildChartCard(
-                      'UV Index',
-                      Icons.wb_sunny,
-                      _buildUVChart(),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  if (_historicalData['radon']?.isNotEmpty == true) ...[
-                    _buildChartCard(
-                      'Radon Levels',
-                      Icons.home_outlined,
-                      _buildRadonChart(),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  if (_historicalData.values.every((list) => list?.isEmpty != false))
-                    _buildNoDataCard(),
-                ],
-              ),
-            ),
+                  ),
+                ),
     );
   }
 
@@ -199,7 +212,7 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
                     ),
                   ),
                   Text(
-                    '7-Day Historical Data',
+                    'Real-time Air Quality Data',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -207,6 +220,13 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
                   if (widget.location.address != null)
                     Text(
                       widget.location.address!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  if (_currentAirQuality != null)
+                    Text(
+                      'Updated: ${_formatTime(_currentAirQuality!.timestamp)}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
@@ -220,7 +240,16 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
     );
   }
 
-  Widget _buildChartCard(String title, IconData icon, Widget chart) {
+  String _formatTime(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildCurrentDataOverview() {
+    if (_currentAirQuality == null) return const SizedBox.shrink();
+
+    final metrics = _currentAirQuality!.metrics;
+    final aqi = metrics.universalAqi ?? 0;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -229,10 +258,13 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
           children: [
             Row(
               children: [
-                Icon(icon, color: Theme.of(context).colorScheme.primary),
+                Icon(
+                  Icons.air,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  title,
+                  'Air Quality Overview',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -240,9 +272,23 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              height: 200,
-              child: chart,
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricTile('AQI', aqi.toString(), _getAQIColor(aqi.toDouble())),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildMetricTile('Status', _currentAirQuality!.status.displayName, _getStatusColor(_currentAirQuality!.status)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _currentAirQuality!.statusReason,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
             ),
           ],
         ),
@@ -250,65 +296,308 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
     );
   }
 
-  Widget _buildAQIChart() {
-    final data = _historicalData['airQuality'] ?? [];
-    if (data.isEmpty) return _buildNoDataMessage();
+  Widget _buildPollutantCards() {
+    if (_currentAirQuality == null) return const SizedBox.shrink();
 
-    return LineChart(
-      LineChartData(
-        gridData: FlGridData(show: true),
-        titlesData: FlTitlesData(
-          show: true,
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              interval: 1,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < data.length) {
-                  final date = data[index].timestamp;
-                  return SideTitleWidget(
-                    axisSide: meta.axisSide,
-                    child: Text(
-                      '${date.month}/${date.day}',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                  );
-                }
-                return const Text('');
-              },
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 40,
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  value.toInt().toString(),
-                  style: const TextStyle(fontSize: 10),
-                );
-              },
-            ),
+    final metrics = _currentAirQuality!.metrics;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Pollutant Concentrations',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
           ),
         ),
-        borderData: FlBorderData(show: true),
-        lineBarsData: [
-          LineChartBarData(
-            spots: data.asMap().entries.map((entry) {
-              return FlSpot(entry.key.toDouble(), entry.value.aqi);
-            }).toList(),
-            isCurved: true,
-            color: _getAQIColor(data.map((e) => e.aqi).reduce((a, b) => a + b) / data.length),
-            barWidth: 3,
-            isStrokeCapRound: true,
-            dotData: FlDotData(show: false),
-            belowBarData: BarAreaData(
-              show: true,
-              color: _getAQIColor(data.map((e) => e.aqi).reduce((a, b) => a + b) / data.length).withValues(alpha: 0.3),
+        const SizedBox(height: 16),
+        _buildPollutantGrid(metrics),
+      ],
+    );
+  }
+
+  Widget _buildPollutantGrid(AirQualityMetrics metrics) {
+    final pollutants = <Map<String, dynamic>>[
+      {
+        'name': 'PM2.5',
+        'value': metrics.pm25,
+        'unit': 'μg/m³',
+        'icon': Icons.blur_on,
+        'color': _getPM25Color(metrics.pm25),
+      },
+      {
+        'name': 'PM10',
+        'value': metrics.pm10,
+        'unit': 'μg/m³',
+        'icon': Icons.grain,
+        'color': _getPM10Color(metrics.pm10),
+      },
+      {
+        'name': 'Ozone',
+        'value': metrics.o3,
+        'unit': 'ppb',
+        'icon': Icons.wb_sunny_outlined,
+        'color': _getOzoneColor(metrics.o3),
+      },
+      {
+        'name': 'NO2',
+        'value': metrics.no2,
+        'unit': 'ppb',
+        'icon': Icons.local_gas_station,
+        'color': _getNO2Color(metrics.no2),
+      },
+      if (metrics.co != null) {
+        'name': 'CO',
+        'value': metrics.co!,
+        'unit': 'ppb',
+        'icon': Icons.smoke_free,
+        'color': _getCOColor(metrics.co!),
+      },
+      if (metrics.so2 != null) {
+        'name': 'SO2',
+        'value': metrics.so2!,
+        'unit': 'ppb',
+        'icon': Icons.factory,
+        'color': _getSO2Color(metrics.so2!),
+      },
+      if (metrics.nh3 != null) {
+        'name': 'NH3',
+        'value': metrics.nh3!,
+        'unit': 'ppb',
+        'icon': Icons.agriculture,
+        'color': Colors.brown,
+      },
+      if (metrics.c6h6 != null) {
+        'name': 'Benzene',
+        'value': metrics.c6h6!,
+        'unit': 'μg/m³',
+        'icon': Icons.oil_barrel,
+        'color': Colors.purple,
+      },
+    ];
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 1.5,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: pollutants.length,
+      itemBuilder: (context, index) {
+        final pollutant = pollutants[index];
+        return _buildPollutantCard(
+          pollutant['name'],
+          pollutant['value'],
+          pollutant['unit'],
+          pollutant['icon'],
+          pollutant['color'],
+        );
+      },
+    );
+  }
+
+  Widget _buildPollutantCard(
+    String name,
+    double value,
+    String unit,
+    IconData icon,
+    Color color,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              '${value.toStringAsFixed(1)} $unit',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            Container(
+              height: 4,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: _getPollutantLevel(name, value),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 100 - _getPollutantLevel(name, value),
+                    child: const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthRecommendationsCard() {
+    if (_currentAirQuality?.healthRecommendations?.isEmpty != false) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.health_and_safety,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Health Recommendations',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ..._currentAirQuality!.healthRecommendations!.map((recommendation) =>
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      recommendation.population.icon,
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            recommendation.population.displayName,
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            recommendation.recommendation,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getRecommendationLevelColor(recommendation.level),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        recommendation.level.name.toUpperCase(),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoricalDataMessage() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(
+              Icons.timeline,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Historical Data',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Historical air quality trends are not currently available. The Google Air Quality API provides real-time data only. For historical trends, data would need to be collected and stored over time.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricTile(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -316,335 +605,6 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
     );
   }
 
-  Widget _buildPM25Chart() {
-    final data = _historicalData['airQuality'] ?? [];
-    if (data.isEmpty) return _buildNoDataMessage();
-
-    return LineChart(
-      LineChartData(
-        gridData: FlGridData(show: true),
-        titlesData: FlTitlesData(
-          show: true,
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              interval: 1,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < data.length) {
-                  final date = data[index].timestamp;
-                  return SideTitleWidget(
-                    axisSide: meta.axisSide,
-                    child: Text(
-                      '${date.month}/${date.day}',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                  );
-                }
-                return const Text('');
-              },
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 40,
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  '${value.toInt()}µg',
-                  style: const TextStyle(fontSize: 10),
-                );
-              },
-            ),
-          ),
-        ),
-        borderData: FlBorderData(show: true),
-        lineBarsData: [
-          LineChartBarData(
-            spots: data.asMap().entries.map((entry) {
-              return FlSpot(entry.key.toDouble(), entry.value.pm25);
-            }).toList(),
-            isCurved: true,
-            color: Colors.purple,
-            barWidth: 3,
-            isStrokeCapRound: true,
-            dotData: FlDotData(show: false),
-            belowBarData: BarAreaData(
-              show: true,
-              color: Colors.purple.withValues(alpha: 0.3),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTemperatureChart() {
-    final data = _historicalData['weather'] ?? [];
-    if (data.isEmpty) return _buildNoDataMessage();
-
-    return LineChart(
-      LineChartData(
-        gridData: FlGridData(show: true),
-        titlesData: FlTitlesData(
-          show: true,
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              interval: 1,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < data.length) {
-                  final date = data[index].timestamp;
-                  return SideTitleWidget(
-                    axisSide: meta.axisSide,
-                    child: Text(
-                      '${date.month}/${date.day}',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                  );
-                }
-                return const Text('');
-              },
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 40,
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  '${value.toInt()}°C',
-                  style: const TextStyle(fontSize: 10),
-                );
-              },
-            ),
-          ),
-        ),
-        borderData: FlBorderData(show: true),
-        lineBarsData: [
-          LineChartBarData(
-            spots: data.asMap().entries.map((entry) {
-              return FlSpot(entry.key.toDouble(), entry.value.temperature);
-            }).toList(),
-            isCurved: true,
-            color: Colors.orange,
-            barWidth: 3,
-            isStrokeCapRound: true,
-            dotData: FlDotData(show: false),
-            belowBarData: BarAreaData(
-              show: true,
-              color: Colors.orange.withValues(alpha: 0.3),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHumidityChart() {
-    final data = _historicalData['weather'] ?? [];
-    if (data.isEmpty) return _buildNoDataMessage();
-
-    return LineChart(
-      LineChartData(
-        gridData: FlGridData(show: true),
-        titlesData: FlTitlesData(
-          show: true,
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              interval: 1,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < data.length) {
-                  final date = data[index].timestamp;
-                  return SideTitleWidget(
-                    axisSide: meta.axisSide,
-                    child: Text(
-                      '${date.month}/${date.day}',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                  );
-                }
-                return const Text('');
-              },
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 40,
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  '${value.toInt()}%',
-                  style: const TextStyle(fontSize: 10),
-                );
-              },
-            ),
-          ),
-        ),
-        borderData: FlBorderData(show: true),
-        lineBarsData: [
-          LineChartBarData(
-            spots: data.asMap().entries.map((entry) {
-              return FlSpot(entry.key.toDouble(), entry.value.humidity);
-            }).toList(),
-            isCurved: true,
-            color: Colors.blue,
-            barWidth: 3,
-            isStrokeCapRound: true,
-            dotData: FlDotData(show: false),
-            belowBarData: BarAreaData(
-              show: true,
-              color: Colors.blue.withValues(alpha: 0.3),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUVChart() {
-    final data = _historicalData['weather'] ?? [];
-    if (data.isEmpty) return _buildNoDataMessage();
-
-    return LineChart(
-      LineChartData(
-        gridData: FlGridData(show: true),
-        titlesData: FlTitlesData(
-          show: true,
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              interval: 1,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < data.length) {
-                  final date = data[index].timestamp;
-                  return SideTitleWidget(
-                    axisSide: meta.axisSide,
-                    child: Text(
-                      '${date.month}/${date.day}',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                  );
-                }
-                return const Text('');
-              },
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 40,
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  value.toInt().toString(),
-                  style: const TextStyle(fontSize: 10),
-                );
-              },
-            ),
-          ),
-        ),
-        borderData: FlBorderData(show: true),
-        lineBarsData: [
-          LineChartBarData(
-            spots: data.asMap().entries.map((entry) {
-              return FlSpot(entry.key.toDouble(), entry.value.uvIndex);
-            }).toList(),
-            isCurved: true,
-            color: Colors.amber,
-            barWidth: 3,
-            isStrokeCapRound: true,
-            dotData: FlDotData(show: false),
-            belowBarData: BarAreaData(
-              show: true,
-              color: Colors.amber.withValues(alpha: 0.3),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRadonChart() {
-    final data = _historicalData['radon'] ?? [];
-    if (data.isEmpty) return _buildNoDataMessage();
-
-    return LineChart(
-      LineChartData(
-        gridData: FlGridData(show: true),
-        titlesData: FlTitlesData(
-          show: true,
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              interval: 1,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < data.length) {
-                  final date = data[index].timestamp;
-                  return SideTitleWidget(
-                    axisSide: meta.axisSide,
-                    child: Text(
-                      '${date.month}/${date.day}',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                  );
-                }
-                return const Text('');
-              },
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 50,
-              getTitlesWidget: (value, meta) {
-                return Text(
-                  '${value.toStringAsFixed(1)} pCi/L',
-                  style: const TextStyle(fontSize: 8),
-                );
-              },
-            ),
-          ),
-        ),
-        borderData: FlBorderData(show: true),
-        lineBarsData: [
-          LineChartBarData(
-            spots: data.asMap().entries.map((entry) {
-              return FlSpot(entry.key.toDouble(), entry.value.radonLevel);
-            }).toList(),
-            isCurved: true,
-            color: Colors.green,
-            barWidth: 3,
-            isStrokeCapRound: true,
-            dotData: FlDotData(show: false),
-            belowBarData: BarAreaData(
-              show: true,
-              color: Colors.green.withValues(alpha: 0.3),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildNoDataCard() {
     return Card(
@@ -676,28 +636,6 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
     );
   }
 
-  Widget _buildNoDataMessage() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.info_outline,
-            size: 32,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'No data available',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Color _getAQIColor(double aqi) {
     if (aqi <= 50) return Colors.green;
     if (aqi <= 100) return Colors.yellow[700]!;
@@ -705,30 +643,4 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
     if (aqi <= 200) return Colors.red;
     return Colors.purple;
   }
-}
-
-class HistoricalDataPoint {
-  final DateTime timestamp;
-  final double aqi;
-  final double pm25;
-  final double pm10;
-  final double ozone;
-  final double temperature;
-  final double humidity;
-  final double uvIndex;
-  final double windSpeed;
-  final double radonLevel;
-
-  HistoricalDataPoint({
-    required this.timestamp,
-    this.aqi = 0.0,
-    this.pm25 = 0.0,
-    this.pm10 = 0.0,
-    this.ozone = 0.0,
-    this.temperature = 0.0,
-    this.humidity = 0.0,
-    this.uvIndex = 0.0,
-    this.windSpeed = 0.0,
-    this.radonLevel = 0.0,
-  });
 }
