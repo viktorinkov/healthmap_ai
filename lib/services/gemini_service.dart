@@ -68,7 +68,6 @@ You are a health AI assistant specializing in air quality and public health. Gen
 HEALTH PROFILE:
 - Age Group: ${userProfile.ageGroup.displayName}
 - Pregnancy Status: ${userProfile.isPregnant ? 'Pregnant' : 'Not pregnant'}
-- Sensitivity Level: ${userProfile.sensitivityLevel}/5
 - Health Conditions: ${userProfile.conditions.map((c) => c.displayName).join(', ')}
 - Lifestyle Factors: ${userProfile.lifestyleRisks.map((r) => r.name).join(', ')}
 - Home Environment: ${userProfile.domesticRisks.map((r) => r.name).join(', ')}
@@ -232,7 +231,6 @@ You are a health AI assistant. Generate 3-5 personalized daily tasks for a perso
 HEALTH PROFILE:
 - Age Group: ${userProfile.ageGroup.displayName}
 - Pregnancy Status: ${userProfile.isPregnant ? 'Pregnant' : 'Not pregnant'}
-- Sensitivity Level: ${userProfile.sensitivityLevel}/5
 - Health Conditions: ${userProfile.conditions.map((c) => c.displayName).join(', ')}
 - Lifestyle Factors: ${userProfile.lifestyleRisks.map((r) => r.name).join(', ')}
 - Home Environment: ${userProfile.domesticRisks.map((r) => r.name).join(', ')}

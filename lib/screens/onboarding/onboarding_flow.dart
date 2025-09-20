@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'welcome_screen.dart';
 import 'health_conditions_screen.dart';
 import 'age_group_screen.dart';
-import 'sensitivity_screen.dart';
 import 'lifestyle_risks_screen.dart';
 import 'domestic_risks_screen.dart';
 import 'summary_screen.dart';
@@ -33,7 +32,6 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       const WelcomeScreen(),
       const HealthConditionsScreen(),
       const AgeGroupScreen(),
-      const SensitivityScreen(),
       const LifestyleRisksScreen(),
       const DomesticRisksScreen(),
       const SummaryScreen(),
@@ -65,7 +63,6 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         conditions: _data.conditions,
         ageGroup: _data.ageGroup!,
         isPregnant: _data.isPregnant,
-        sensitivityLevel: _data.sensitivityLevel,
         lifestyleRisks: _data.lifestyleRisks,
         domesticRisks: _data.domesticRisks,
         lastUpdated: DateTime.now(),
@@ -193,14 +190,12 @@ class OnboardingData extends ChangeNotifier {
   List<HealthCondition> _conditions = [];
   AgeGroup? _ageGroup;
   bool _isPregnant = false;
-  int _sensitivityLevel = 3;
   List<LifestyleRisk> _lifestyleRisks = [];
   List<DomesticRisk> _domesticRisks = [];
 
   List<HealthCondition> get conditions => _conditions;
   AgeGroup? get ageGroup => _ageGroup;
   bool get isPregnant => _isPregnant;
-  int get sensitivityLevel => _sensitivityLevel;
   List<LifestyleRisk> get lifestyleRisks => _lifestyleRisks;
   List<DomesticRisk> get domesticRisks => _domesticRisks;
 
@@ -219,10 +214,6 @@ class OnboardingData extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateSensitivityLevel(int level) {
-    _sensitivityLevel = level;
-    notifyListeners();
-  }
 
   void updateLifestyleRisks(List<LifestyleRisk> risks) {
     _lifestyleRisks = risks;
