@@ -79,11 +79,13 @@ class EnvironmentalMeasurementsCard extends StatelessWidget {
           _buildWeatherMeasurements(context, measurements!.meteorology!),
           const SizedBox(height: 16),
         ],
-        if (measurements!.aeroallergens != null) ...[
-          _buildSectionHeader(context, 'Pollen Levels', Icons.grass),
-          _buildPollenMeasurements(context, measurements!.aeroallergens!),
-          const SizedBox(height: 16),
-        ],
+        // Always show pollen section, but show unavailable message if no data
+        _buildSectionHeader(context, 'Pollen Levels', Icons.grass),
+        if (measurements!.aeroallergens != null)
+          _buildPollenMeasurements(context, measurements!.aeroallergens!)
+        else
+          _buildDataUnavailableMessage(context, 'Pollen data unavailable'),
+        const SizedBox(height: 16),
         if (measurements!.wildfire != null) ...[
           _buildSectionHeader(context, 'Wildfire Activity', Icons.local_fire_department),
           _buildWildfireMeasurements(context, measurements!.wildfire!),
@@ -228,6 +230,29 @@ class EnvironmentalMeasurementsCard extends StatelessWidget {
           Text(
             'Source: $source',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDataUnavailableMessage(BuildContext context, String message) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(
+            Icons.warning_amber,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontStyle: FontStyle.italic,
             ),
