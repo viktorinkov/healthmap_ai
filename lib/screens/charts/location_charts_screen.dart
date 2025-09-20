@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../models/pinned_location.dart';
 import '../../models/air_quality.dart';
+import '../../models/weather_data.dart';
 import '../../services/air_quality_api_service.dart';
-import '../../widgets/pollen_historical_chart.dart';
+import '../../services/weather_api_service.dart' as weather_service;
+import '../../widgets/weather_historical_chart.dart';
+import '../../widgets/weather_conditions_section.dart';
 
 class LocationChartsScreen extends StatefulWidget {
   final PinnedLocation location;
@@ -22,12 +25,17 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
   AirQualityData? _currentAirQuality;
   List<AirQualityData>? _historicalData;
   bool _loadingHistorical = false;
+  WeatherData? _currentWeather;
+  List<WeatherData>? _weatherHistoricalData;
+  bool _loadingWeatherHistorical = false;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentAirQuality();
     _loadHistoricalData();
+    _loadCurrentWeather();
+    _loadWeatherHistoricalData();
   }
 
   Future<void> _loadCurrentAirQuality() async {
@@ -171,12 +179,28 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Air Quality Historical Data
                         if (_loadingHistorical)
                           _buildLoadingHistoricalCard()
                         else if (_historicalData != null && _historicalData!.isNotEmpty)
                           _buildHistoricalCharts()
                         else
                           _buildNoHistoricalDataCard(),
+
+                        // Meteorological Conditions Section
+                        const SizedBox(height: 24),
+                        if (_currentWeather != null) ...[
+                          WeatherConditionsSection(weatherData: _currentWeather!),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // Weather Historical Data
+                        if (_loadingWeatherHistorical)
+                          _buildLoadingWeatherCard()
+                        else if (_weatherHistoricalData != null && _weatherHistoricalData!.isNotEmpty)
+                          WeatherHistoricalChart(historicalData: _weatherHistoricalData!)
+                        else
+                          _buildNoWeatherDataCard(),
                       ],
                     ),
                   ),
@@ -254,6 +278,50 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
     if (aqi <= 150) return Colors.orange;
     if (aqi <= 200) return Colors.red;
     return Colors.purple;
+  }
+
+  Future<void> _loadCurrentWeather() async {
+    try {
+      final weather = await weather_service.WeatherApiService.getCurrentWeather(
+        widget.location.latitude,
+        widget.location.longitude,
+        locationName: widget.location.name,
+      );
+
+      setState(() {
+        _currentWeather = weather;
+      });
+    } catch (e) {
+      debugPrint('Error loading current weather: $e');
+      setState(() {
+        _currentWeather = null;
+      });
+    }
+  }
+
+  Future<void> _loadWeatherHistoricalData() async {
+    try {
+      setState(() {
+        _loadingWeatherHistorical = true;
+      });
+
+      final historicalData = await weather_service.WeatherApiService.getHistoricalWeather(
+        widget.location.latitude,
+        widget.location.longitude,
+        locationName: widget.location.name,
+      );
+
+      setState(() {
+        _weatherHistoricalData = historicalData;
+        _loadingWeatherHistorical = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading weather historical data: $e');
+      setState(() {
+        _weatherHistoricalData = null;
+        _loadingWeatherHistorical = false;
+      });
+    }
   }
 
   Future<void> _loadHistoricalData() async {
@@ -353,18 +421,18 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
         ),
         const SizedBox(height: 16),
         // Core pollutants (always present)
-        _buildPollutantChart('PM2.5', 'μg/m³', (data) => data.metrics.pm25),
+        _buildPollutantChart('PM2.5', 'μg/m³', (AirQualityData data) => data.metrics.pm25),
         const SizedBox(height: 16),
-        _buildPollutantChart('PM10', 'μg/m³', (data) => data.metrics.pm10),
+        _buildPollutantChart('PM10', 'μg/m³', (AirQualityData data) => data.metrics.pm10),
         const SizedBox(height: 16),
-        _buildPollutantChart('Ozone (O₃)', 'ppb', (data) => data.metrics.o3),
+        _buildPollutantChart('Ozone (O₃)', 'ppb', (AirQualityData data) => data.metrics.o3),
         const SizedBox(height: 16),
-        _buildPollutantChart('NO₂', 'ppb', (data) => data.metrics.no2),
+        _buildPollutantChart('NO₂', 'ppb', (AirQualityData data) => data.metrics.no2),
 
         // Optional pollutants
-        if (_historicalData!.any((data) => data.metrics.co != null)) ...[
+        if (_historicalData!.any((AirQualityData data) => data.metrics.co != null)) ...[
           const SizedBox(height: 16),
-          _buildPollutantChart('CO', 'ppb', (data) => data.metrics.co ?? 0),
+          _buildPollutantChart('CO', 'ppb', (AirQualityData data) => data.metrics.co ?? 0),
         ],
         if (_historicalData!.any((data) => data.metrics.so2 != null)) ...[
           const SizedBox(height: 16),
@@ -442,6 +510,62 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
             const SizedBox(height: 8),
             Text(
               'Historical pollen data is not available through the Google Pollen API. Please check the forecast section for current and upcoming pollen levels.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingWeatherCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'Loading Weather Data',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Fetching meteorological conditions...',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoWeatherDataCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            Icon(
+              Icons.cloud_off,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Weather Data Unavailable',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Meteorological data is not available for this location.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,

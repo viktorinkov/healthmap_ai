@@ -4,6 +4,11 @@ import 'package:http/http.dart' as http;
 import '../models/pollen_data.dart';
 import 'api_keys.dart';
 
+/// Google Maps Pollen API Service
+/// 
+/// Implementation based on official Google documentation:
+/// https://developers.google.com/maps/documentation/pollen/overview
+/// https://developers.google.com/maps/documentation/pollen/forecast
 class PollenApiService {
   static const String _baseUrl = 'https://pollen.googleapis.com/v1';
 
@@ -13,12 +18,17 @@ class PollenApiService {
   static const Duration _cacheValidity = Duration(hours: 6);
 
   /// Get pollen forecast for a specific location (up to 5 days)
+  /// 
+  /// According to Google's API documentation, this should be a GET request with URL parameters.
+  /// Reference: https://developers.google.com/maps/documentation/pollen/forecast
   static Future<PollenForecast?> getPollenForecast(
     double latitude,
     double longitude, {
     int days = 5,
     String? languageCode = 'en',
     bool plantsDescription = true,
+    int? pageSize,
+    String? pageToken,
   }) async {
     final cacheKey = 'pollen_${latitude.toStringAsFixed(4)}_${longitude.toStringAsFixed(4)}_$days';
 
@@ -29,32 +39,37 @@ class PollenApiService {
     }
 
     try {
-      final url = Uri.parse('$_baseUrl/forecast:lookup');
-
-      final requestBody = {
-        'location': {
-          'latitude': latitude,
-          'longitude': longitude,
-        },
-        'days': days,
-        'languageCode': languageCode,
-        'plantsDescription': plantsDescription,
+      // Build the query parameters according to Google's API documentation
+      final queryParams = <String, String>{
+        'key': ApiKeys.googleMapsApiKey,
+        'location.latitude': latitude.toString(),
+        'location.longitude': longitude.toString(),
+        'days': days.toString(),
       };
 
-      debugPrint('Pollen API Request: ${jsonEncode(requestBody)}');
+      // Add optional parameters
+      if (languageCode != null && languageCode.isNotEmpty) {
+        queryParams['languageCode'] = languageCode;
+      }
+      queryParams['plantsDescription'] = plantsDescription.toString();
+      
+      if (pageSize != null) {
+        queryParams['pageSize'] = pageSize.toString();
+      }
+      
+      if (pageToken != null && pageToken.isNotEmpty) {
+        queryParams['pageToken'] = pageToken;
+      }
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': ApiKeys.googleMapsApiKey,
-        },
-        body: jsonEncode(requestBody),
-      );
+      final uri = Uri.parse('$_baseUrl/forecast:lookup').replace(queryParameters: queryParams);
+      
+      debugPrint('Pollen API Request URL: $uri');
+
+      final response = await http.get(uri);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        debugPrint('Pollen API Response received');
+        debugPrint('Pollen API Response received successfully');
         final forecast = _parsePollenResponse(data);
 
         if (forecast != null) {
@@ -67,15 +82,27 @@ class PollenApiService {
       } else {
         debugPrint('Error fetching pollen data: ${response.statusCode}');
         debugPrint('Response body: ${response.body}');
+        
+        // Try to return from cache on failure
+        if (_pollenCache.containsKey(cacheKey)) {
+          debugPrint('Returning stale pollen data from cache due to API failure.');
+          return _pollenCache[cacheKey];
+        }
         return null;
       }
     } catch (e) {
       debugPrint('Exception fetching pollen data: $e');
+      // Try to return from cache on exception
+      if (_pollenCache.containsKey(cacheKey)) {
+        debugPrint('Returning stale pollen data from cache due to exception.');
+        return _pollenCache[cacheKey];
+      }
       return null;
     }
   }
 
   /// Parse the API response into our PollenForecast model
+  /// Based on the response format from Google's API documentation
   static PollenForecast? _parsePollenResponse(Map<String, dynamic> data) {
     try {
       final regionCode = data['regionCode'] as String? ?? '';
@@ -109,10 +136,10 @@ class PollenApiService {
     }
   }
 
-  /// Parse individual day data from pollen response
+  /// Parse daily pollen information according to Google API response format
   static PollenDailyInfo? _parseDailyInfo(Map<String, dynamic> dayData) {
     try {
-      // Parse date
+      // Parse date according to Google API format: {year: 2023, month: 7, day: 11}
       final dateMap = dayData['date'] as Map<String, dynamic>?;
       if (dateMap == null) {
         debugPrint('No date found in daily info');
@@ -130,7 +157,7 @@ class PollenApiService {
 
       final date = DateTime(year, month, day);
 
-      // Parse pollen type info
+      // Parse pollen type info (GRASS, TREE, WEED)
       final pollenTypeInfoList = dayData['pollenTypeInfo'] as List<dynamic>? ?? [];
       final List<PollenTypeInfo> pollenTypeInfo = [];
 
@@ -141,7 +168,7 @@ class PollenApiService {
         }
       }
 
-      // Parse plant info
+      // Parse plant info (specific plants like BIRCH, OAK, etc.)
       final plantInfoList = dayData['plantInfo'] as List<dynamic>? ?? [];
       final List<PlantInfo> plantInfo = [];
 
@@ -163,7 +190,7 @@ class PollenApiService {
     }
   }
 
-  /// Parse pollen type info (grass, tree, weed)
+  /// Parse pollen type info (GRASS, TREE, WEED) according to Google API format
   static PollenTypeInfo? _parsePollenTypeInfo(Map<String, dynamic> typeData) {
     try {
       final codeStr = typeData['code'] as String?;
@@ -175,6 +202,7 @@ class PollenApiService {
         return null;
       }
 
+      // Map API codes to our PollenType enum
       PollenType? code;
       switch (codeStr.toUpperCase()) {
         case 'GRASS':
@@ -198,8 +226,8 @@ class PollenApiService {
         indexInfo = _parseIndexInfo(indexInfoData);
       }
 
-      // Parse health recommendation
-      final healthRecData = typeData['healthRecommendation'] as Map<String, dynamic>?;
+      // Parse health recommendation (can be array of strings or object)
+      final healthRecData = typeData['healthRecommendations'];
       PollenHealthRecommendation? healthRecommendation;
       if (healthRecData != null) {
         healthRecommendation = _parseHealthRecommendation(healthRecData);
@@ -218,7 +246,7 @@ class PollenApiService {
     }
   }
 
-  /// Parse plant info (specific plants like birch, oak, etc.)
+  /// Parse plant info (specific plants like BIRCH, OAK, etc.) according to Google API format
   static PlantInfo? _parsePlantInfo(Map<String, dynamic> plantData) {
     try {
       final codeStr = plantData['code'] as String?;
@@ -286,6 +314,7 @@ class PollenApiService {
           break;
         default:
           debugPrint('Unknown plant type code: $codeStr');
+          // Return null for unknown plant types or create a fallback
           return null;
       }
 
@@ -316,36 +345,39 @@ class PollenApiService {
     }
   }
 
-  /// Parse index info (pollen index and category)
+  /// Parse index info (Universal Pollen Index) according to Google API format
   static PollenIndexInfo? _parseIndexInfo(Map<String, dynamic> indexData) {
     try {
       final value = indexData['value'] as int? ?? 0;
       final indexDescription = indexData['indexDescription'] as String? ?? '';
 
-      // Parse category
+      // Parse category according to Google API format
       final categoryStr = indexData['category'] as String?;
       PollenIndexCategory category = PollenIndexCategory.none;
 
       if (categoryStr != null) {
-        switch (categoryStr.toUpperCase()) {
-          case 'UPI_CATEGORY_0':
+        switch (categoryStr) {
+          case 'None':
             category = PollenIndexCategory.none;
             break;
-          case 'UPI_CATEGORY_1':
+          case 'Very Low':
             category = PollenIndexCategory.veryLow;
             break;
-          case 'UPI_CATEGORY_2':
+          case 'Low':
             category = PollenIndexCategory.low;
             break;
-          case 'UPI_CATEGORY_3':
+          case 'Moderate':
             category = PollenIndexCategory.moderate;
             break;
-          case 'UPI_CATEGORY_4':
+          case 'High':
             category = PollenIndexCategory.high;
             break;
-          case 'UPI_CATEGORY_5':
+          case 'Very High':
             category = PollenIndexCategory.veryHigh;
             break;
+          default:
+            debugPrint('Unknown pollen index category: $categoryStr');
+            category = PollenIndexCategory.none;
         }
       }
 
@@ -368,7 +400,7 @@ class PollenApiService {
     }
   }
 
-  /// Parse color information
+  /// Parse color information according to Google API format
   static Color? _parseColor(Map<String, dynamic> colorData) {
     try {
       final red = (colorData['red'] as num?)?.toDouble() ?? 0.0;
@@ -388,33 +420,48 @@ class PollenApiService {
     }
   }
 
-  /// Parse health recommendation
-  static PollenHealthRecommendation? _parseHealthRecommendation(Map<String, dynamic> healthData) {
+  /// Parse health recommendation according to Google API format
+  /// Google API returns an array of strings, not an object
+  static PollenHealthRecommendation? _parseHealthRecommendation(dynamic healthData) {
     try {
-      final generalPopulation = healthData['generalPopulation'] as String? ?? 'No recommendations available';
-      final elderly = healthData['elderly'] as String?;
-      final lungDiseaseAtRisk = healthData['lungDiseaseAtRisk'] as String?;
-      final heartDiseaseAtRisk = healthData['heartDiseaseAtRisk'] as String?;
-      final athletes = healthData['athletes'] as String?;
-      final pregnantWomen = healthData['pregnantWomen'] as String?;
-      final children = healthData['children'] as String?;
+      if (healthData is List) {
+        // Google API returns health recommendations as an array of strings
+        final recommendations = healthData.cast<String>();
+        final generalRecommendation = recommendations.isNotEmpty 
+            ? recommendations.join(' ') 
+            : 'No recommendations available';
+        
+        return PollenHealthRecommendation(
+          generalPopulation: generalRecommendation,
+        );
+      } else if (healthData is Map<String, dynamic>) {
+        // Fallback for object format (if API changes)
+        final generalPopulation = healthData['generalPopulation'] as String? ?? 'No recommendations available';
+        final elderly = healthData['elderly'] as String?;
+        final lungDiseaseAtRisk = healthData['lungDiseaseAtRisk'] as String?;
+        final heartDiseaseAtRisk = healthData['heartDiseaseAtRisk'] as String?;
+        final athletes = healthData['athletes'] as String?;
+        final pregnantWomen = healthData['pregnantWomen'] as String?;
+        final children = healthData['children'] as String?;
 
-      return PollenHealthRecommendation(
-        generalPopulation: generalPopulation,
-        elderly: elderly,
-        lungDiseaseAtRisk: lungDiseaseAtRisk,
-        heartDiseaseAtRisk: heartDiseaseAtRisk,
-        athletes: athletes,
-        pregnantWomen: pregnantWomen,
-        children: children,
-      );
+        return PollenHealthRecommendation(
+          generalPopulation: generalPopulation,
+          elderly: elderly,
+          lungDiseaseAtRisk: lungDiseaseAtRisk,
+          heartDiseaseAtRisk: heartDiseaseAtRisk,
+          athletes: athletes,
+          pregnantWomen: pregnantWomen,
+          children: children,
+        );
+      }
+      return null;
     } catch (e) {
       debugPrint('Error parsing health recommendation: $e');
       return null;
     }
   }
 
-  /// Parse plant description
+  /// Parse plant description according to Google API format
   static PlantDescription? _parsePlantDescription(Map<String, dynamic> descData) {
     try {
       return PlantDescription(
@@ -434,6 +481,7 @@ class PollenApiService {
   }
 
   /// Get the heatmap tile URL for pollen visualization
+  /// Reference: https://developers.google.com/maps/documentation/pollen/heatmap-tiles
   static String getPollenHeatmapTileUrl(PollenType pollenType, int zoom, int x, int y) {
     String typeParam;
     switch (pollenType) {
@@ -466,7 +514,7 @@ class PollenApiService {
     }
   }
 
-  // Cache management methods
+  /// Check if cache is valid for a given key
   static bool _isCacheValid(String key) {
     if (!_pollenCache.containsKey(key) || !_cacheTimestamps.containsKey(key)) {
       return false;
@@ -478,6 +526,7 @@ class PollenApiService {
     return now.difference(timestamp) < _cacheValidity;
   }
 
+  /// Update the cache with new data
   static void _updateCache(String key, PollenForecast forecast) {
     _pollenCache[key] = forecast;
     _cacheTimestamps[key] = DateTime.now();
@@ -486,6 +535,7 @@ class PollenApiService {
     _cleanupOldCacheEntries();
   }
 
+  /// Clean up old cache entries to prevent memory leaks
   static void _cleanupOldCacheEntries() {
     final now = DateTime.now();
     final keysToRemove = <String>[];
