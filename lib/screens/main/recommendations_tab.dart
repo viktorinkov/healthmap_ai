@@ -612,6 +612,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
       future: GeminiService.generateIntelligentAirQualityAssessment(
         metrics: airQuality.metrics,
         locationName: location?.name ?? (isCurrentLocation ? 'Current Location' : 'Location'),
+        healthRecommendations: airQuality.healthRecommendations,
       ),
       builder: (context, snapshot) {
         // Create modified air quality data with Gemini assessment

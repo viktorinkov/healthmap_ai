@@ -295,40 +295,50 @@ Generate personalized daily tasks:
   static Future<Map<String, dynamic>> generateIntelligentAirQualityAssessment({
     required AirQualityMetrics metrics,
     String? locationName,
+    List<HealthRecommendationTag>? healthRecommendations,
   }) async {
     try {
       debugPrint('Generating Gemini assessment for location: $locationName');
       debugPrint('API Key configured: ${ApiKeys.hasGeminiKey}');
 
+      // Build health recommendations context
+      String healthContext = '';
+      if (healthRecommendations != null && healthRecommendations.isNotEmpty) {
+        healthContext = '\nHEALTH RECOMMENDATIONS HIGHLIGHTS:\n';
+        for (final rec in healthRecommendations) {
+          healthContext += '- ${rec.population.displayName}: ${rec.recommendation} (Level: ${rec.level.name})\n';
+        }
+      }
+
       final prompt = '''
-You are an expert environmental health scientist specializing in air quality assessment. Analyze the following pollutant measurements and provide an intelligent assessment.
+You are an expert environmental health scientist. Analyze the air quality data and provide a concise assessment.
 
-POLLUTANT DATA:
-- PM2.5: ${metrics.pm25.toStringAsFixed(1)} μg/m³ (EPA standard: 35 μg/m³ daily, WHO guideline: 15 μg/m³)
-- PM10: ${metrics.pm10.toStringAsFixed(1)} μg/m³ (EPA standard: 150 μg/m³ daily, WHO guideline: 45 μg/m³)
-- Ozone (O₃): ${metrics.o3.toStringAsFixed(1)} ppb (EPA standard: 70 ppb 8-hour average)
-- Nitrogen Dioxide (NO₂): ${metrics.no2.toStringAsFixed(1)} ppb (EPA standard: 100 ppb 1-hour average)
-- Wildfire Index: ${metrics.wildfireIndex.toStringAsFixed(1)}/100${metrics.co != null ? '\n- Carbon Monoxide (CO): ${metrics.co!.toStringAsFixed(1)} ppb' : ''}${metrics.so2 != null ? '\n- Sulfur Dioxide (SO₂): ${metrics.so2!.toStringAsFixed(1)} ppb' : ''}
-- Radon: ${metrics.radon.toStringAsFixed(1)} pCi/L (EPA action level: 4.0 pCi/L)
+LOCATION: ${locationName ?? 'Current Location'}
 
-TASK:
-Based on these measurements and their health implications, determine:
-1. Overall air quality status: "good", "caution", or "avoid"
-2. One-sentence justification explaining the primary health concern or reason for the assessment
+AIR QUALITY INDEX (AQI): ${metrics.universalAqi ?? 'Not available'}
+${metrics.universalAqi != null ? _getAqiContext(metrics.universalAqi!) : ''}
 
-GUIDELINES:
-- Consider cumulative effects of multiple pollutants, not just individual thresholds
-- Account for sensitive populations (children, elderly, respiratory conditions)
-- Factor in wildfire smoke and radon levels
-- Prioritize the most health-threatening pollutant in your justification
-- Use EPA standards and WHO guidelines as references
-- Be specific about which pollutant(s) drive your assessment
+POLLUTANT CONCENTRATIONS:
+- PM2.5: ${metrics.pm25.toStringAsFixed(1)} μg/m³ (EPA: 35, WHO: 15)
+- PM10: ${metrics.pm10.toStringAsFixed(1)} μg/m³ (EPA: 150, WHO: 45)
+- Ozone: ${metrics.o3.toStringAsFixed(1)} ppb (EPA: 70)
+- NO₂: ${metrics.no2.toStringAsFixed(1)} ppb (EPA: 100)${metrics.co != null ? '\n- CO: ${metrics.co!.toStringAsFixed(1)} ppb' : ''}${metrics.so2 != null ? '\n- SO₂: ${metrics.so2!.toStringAsFixed(1)} ppb' : ''}
 
-RESPONSE FORMAT:
+ADDITIONAL FACTORS:
+- Wildfire Index: ${metrics.wildfireIndex.toStringAsFixed(1)}/100${metrics.wildfireRiskLevel != null ? ' (${metrics.wildfireRiskLevel})' : ''}
+- Radon: ${metrics.radon.toStringAsFixed(1)} pCi/L${metrics.radonRiskLevel != null ? ' (${metrics.radonRiskLevel} risk)' : ''}$healthContext
+
+TASK: Provide a comprehensive assessment considering:
+1. AQI score and pollutant levels relative to health standards
+2. Special risks from wildfire smoke and radon exposure
+3. Health recommendations for different population groups
+4. Cumulative health impact of multiple pollutants
+
+REQUIRED OUTPUT FORMAT (no deviation):
 Status: [good/caution/avoid]
-Justification: [One clear sentence explaining the primary health concern]
+Justification: [Single sentence, max 150 characters, identifying primary concern and affected populations]
 
-Provide your assessment:''';
+Assessment:''';
 
       if (model == null) {
         debugPrint('Gemini model is null - API key might be missing');
@@ -352,28 +362,117 @@ Provide your assessment:''';
     }
   }
 
+  static String _getAqiContext(int aqi) {
+    if (aqi <= 50) {
+      return '(0-50: Good - Air quality is satisfactory)';
+    } else if (aqi <= 100) {
+      return '(51-100: Moderate - Acceptable for most, sensitive groups may experience minor issues)';
+    } else if (aqi <= 150) {
+      return '(101-150: Unhealthy for Sensitive Groups)';
+    } else if (aqi <= 200) {
+      return '(151-200: Unhealthy - Everyone may experience health effects)';
+    } else if (aqi <= 300) {
+      return '(201-300: Very Unhealthy - Health warnings)';
+    } else {
+      return '(301+: Hazardous - Emergency conditions)';
+    }
+  }
+
   static Map<String, dynamic> _parseAirQualityAssessment(String response) {
-    final lines = response.split('\n').map((line) => line.trim()).toList();
+    // Clean and normalize the response
+    final cleanResponse = response.trim();
+    final lines = cleanResponse.split('\n').map((line) => line.trim()).where((line) => line.isNotEmpty).toList();
 
     String status = 'caution';
     String justification = 'Air quality requires attention based on current pollutant levels.';
 
+    // More robust parsing with fallback patterns
     for (final line in lines) {
-      if (line.toLowerCase().startsWith('status:')) {
-        final statusText = line.substring(7).trim().toLowerCase();
-        if (statusText.contains('good')) {
-          status = 'good';
-        } else if (statusText.contains('avoid')) {
-          status = 'avoid';
-        } else {
-          status = 'caution';
-        }
-      } else if (line.toLowerCase().startsWith('justification:')) {
-        justification = line.substring(13).trim();
-        if (justification.isEmpty) {
-          justification = 'Air quality assessment based on current environmental conditions.';
+      final lowerLine = line.toLowerCase();
+
+      // Parse status with multiple pattern matching
+      if (lowerLine.startsWith('status:') || lowerLine.startsWith('assessment:')) {
+        final colonIndex = line.indexOf(':');
+        if (colonIndex != -1) {
+          final statusText = line.substring(colonIndex + 1).trim().toLowerCase();
+          if (statusText.contains('good') || statusText.contains('satisfactory')) {
+            status = 'good';
+          } else if (statusText.contains('avoid') || statusText.contains('unhealthy') || statusText.contains('hazardous')) {
+            status = 'avoid';
+          } else if (statusText.contains('caution') || statusText.contains('moderate') || statusText.contains('sensitive')) {
+            status = 'caution';
+          }
         }
       }
+
+      // Parse justification with better handling
+      else if (lowerLine.startsWith('justification:') || lowerLine.startsWith('reason:')) {
+        final colonIndex = line.indexOf(':');
+        if (colonIndex != -1) {
+          var rawJustification = line.substring(colonIndex + 1).trim();
+
+          // Handle potential clipping by ensuring sentence completeness
+          if (rawJustification.isNotEmpty) {
+            // Ensure the justification ends properly (with punctuation or is reasonably complete)
+            if (!rawJustification.endsWith('.') && !rawJustification.endsWith('!') && !rawJustification.endsWith('?')) {
+              // If it seems cut off, add ellipsis for clarity but prefer complete sentences
+              if (rawJustification.length > 100) {
+                rawJustification = rawJustification.substring(0, 100).trim() + '...';
+              }
+            }
+
+            // Truncate if too long while preserving meaning
+            if (rawJustification.length > 200) {
+              final sentences = rawJustification.split('. ');
+              rawJustification = sentences.first;
+              if (!rawJustification.endsWith('.')) {
+                rawJustification += '.';
+              }
+            }
+
+            justification = rawJustification;
+          }
+        }
+      }
+
+      // Try to extract status from patterns within the text if not found yet
+      else if (status == 'caution' && (lowerLine.contains('good air quality') || lowerLine.contains('satisfactory'))) {
+        status = 'good';
+      } else if (status == 'caution' && (lowerLine.contains('avoid') || lowerLine.contains('unhealthy') || lowerLine.contains('hazardous'))) {
+        status = 'avoid';
+      }
+    }
+
+    // Fallback: try to extract information from the entire response if structured parsing failed
+    if (status == 'caution' && justification.contains('current pollutant levels')) {
+      final responseLower = cleanResponse.toLowerCase();
+      if (responseLower.contains('good') && !responseLower.contains('avoid') && !responseLower.contains('unhealthy')) {
+        status = 'good';
+      } else if (responseLower.contains('avoid') || responseLower.contains('unhealthy') || responseLower.contains('hazardous')) {
+        status = 'avoid';
+      }
+
+      // Extract a meaningful justification from the response if the default one is still being used
+      if (justification.contains('current pollutant levels') && cleanResponse.length > 50) {
+        // Try to find a sentence that explains the reasoning
+        final sentences = cleanResponse.split(RegExp(r'[.!?]+'));
+        for (final sentence in sentences) {
+          final trimmedSentence = sentence.trim();
+          if (trimmedSentence.length > 20 && trimmedSentence.length < 200 &&
+              (trimmedSentence.toLowerCase().contains('pm') ||
+               trimmedSentence.toLowerCase().contains('aqi') ||
+               trimmedSentence.toLowerCase().contains('pollutant') ||
+               trimmedSentence.toLowerCase().contains('air quality'))) {
+            justification = trimmedSentence + (trimmedSentence.endsWith('.') ? '' : '.');
+            break;
+          }
+        }
+      }
+    }
+
+    // Final validation and cleanup
+    if (justification.length > 200) {
+      justification = justification.substring(0, 197) + '...';
     }
 
     return {

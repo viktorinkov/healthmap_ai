@@ -195,6 +195,7 @@ class _MapTabState extends State<MapTab> {
                     future: GeminiService.generateIntelligentAirQualityAssessment(
                       metrics: airQuality.metrics,
                       locationName: location.name,
+                      healthRecommendations: airQuality.healthRecommendations,
                     ),
                     builder: (context, snapshot) {
                       // Create modified air quality data with Gemini assessment
