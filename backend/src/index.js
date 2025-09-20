@@ -12,6 +12,7 @@ const weatherRoutes = require('./routes/weather.routes');
 const pinRoutes = require('./routes/pin.routes');
 const healthRoutes = require('./routes/health.routes');
 const radonRoutes = require('./routes/radon.routes');
+const runningRoutes = require('./routes/running.routes');
 
 const { initializeDatabase } = require('./config/database');
 const { startScheduledTasks } = require('./services/scheduler.service');
@@ -49,6 +50,7 @@ app.use('/api/weather', weatherRoutes);
 app.use('/api/pins', pinRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/radon', radonRoutes);
+app.use('/api/running', runningRoutes);
 
 // Health check endpoint
 app.get('/api/health-check', (req, res) => {

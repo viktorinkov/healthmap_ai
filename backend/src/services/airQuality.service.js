@@ -32,13 +32,7 @@ class AirQualityService {
             'LOCAL_AQI',
             'POLLUTANT_ADDITIONAL_INFO'
           ],
-          languageCode: 'en',
-          customLocalAqis: [
-            {
-              regionCode: 'US',
-              aqi: 'US_EPA'
-            }
-          ]
+          languageCode: 'en'
         }
       );
 
@@ -50,6 +44,9 @@ class AirQualityService {
       return data;
     } catch (error) {
       console.error('Error fetching air quality:', error);
+      console.error('API Response Details:', error.response?.data);
+      console.error('Request URL:', error.config?.url);
+      console.error('Request Data:', error.config?.data);
 
       // Return last known data if available
       const fallback = await getOne(
@@ -70,7 +67,7 @@ class AirQualityService {
   // Transform Google Air Quality API response to our format
   transformAirQualityData(data) {
     const indexes = data.indexes || [];
-    const usAqi = indexes.find(idx => idx.code === 'uaqi') || indexes[0];
+    const usAqi = indexes.find(idx => idx.code === 'usa_epa') || indexes[0];
     const pollutants = data.pollutants || [];
 
     // Extract pollutant concentrations

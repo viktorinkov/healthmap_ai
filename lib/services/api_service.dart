@@ -27,8 +27,8 @@ class ApiService {
     await prefs.remove('auth_token');
   }
 
-  // Get headers with auth token
-  static Map<String, String> _getHeaders({bool includeAuth = true}) {
+  // Get headers with auth token (made public for other services)
+  static Map<String, String> getHeaders({bool includeAuth = true}) {
     final headers = {
       'Content-Type': 'application/json',
     };
@@ -50,7 +50,7 @@ class ApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
       body: jsonEncode({
         'username': username,
         'password': password,
@@ -72,7 +72,7 @@ class ApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/login'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
       body: jsonEncode({
         'username': username,
         'password': password,
@@ -93,7 +93,7 @@ class ApiService {
       try {
         await http.post(
           Uri.parse('$baseUrl/auth/logout'),
-          headers: _getHeaders(),
+          headers: getHeaders(),
         );
       } catch (e) {
         // Ignore errors during logout
@@ -105,7 +105,7 @@ class ApiService {
   static Future<Map<String, dynamic>> completeOnboarding() async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/complete-onboarding'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
     );
 
     return jsonDecode(response.body);
@@ -115,7 +115,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getUserProfile() async {
     final response = await http.get(
       Uri.parse('$baseUrl/users/profile'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
     );
 
     if (response.statusCode == 200) {
@@ -130,7 +130,7 @@ class ApiService {
   ) async {
     final response = await http.post(
       Uri.parse('$baseUrl/users/medical-profile'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
       body: jsonEncode(profileData),
     );
 
@@ -141,7 +141,7 @@ class ApiService {
   static Future<List<dynamic>> getPins({bool includeCurrentData = false}) async {
     final response = await http.get(
       Uri.parse('$baseUrl/pins?includeCurrentData=$includeCurrentData'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
     );
 
     return jsonDecode(response.body);
@@ -155,7 +155,7 @@ class ApiService {
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/pins'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
       body: jsonEncode({
         'name': name,
         'latitude': latitude,
@@ -174,7 +174,7 @@ class ApiService {
   }) async {
     final response = await http.put(
       Uri.parse('$baseUrl/pins/$pinId'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
       body: jsonEncode({
         if (name != null) 'name': name,
         if (address != null) 'address': address,
@@ -187,7 +187,7 @@ class ApiService {
   static Future<void> deletePin(int pinId) async {
     await http.delete(
       Uri.parse('$baseUrl/pins/$pinId'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
     );
   }
 
@@ -198,7 +198,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/air-quality/current?lat=$latitude&lon=$longitude'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
     );
 
     return jsonDecode(response.body);
@@ -210,7 +210,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/weather/current?lat=$latitude&lon=$longitude'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
     );
 
     return jsonDecode(response.body);
@@ -222,7 +222,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/weather/pollen?lat=$latitude&lon=$longitude'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
     );
 
     return jsonDecode(response.body);
@@ -234,7 +234,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/weather/environmental?lat=$latitude&lon=$longitude'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
     );
 
     return jsonDecode(response.body);
@@ -248,7 +248,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/weather/wildfire?lat=$latitude&lon=$longitude&radius=$radius'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
     );
 
     return jsonDecode(response.body);
@@ -262,7 +262,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/weather/forecast?lat=$latitude&lon=$longitude&days=$days'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
     );
 
     return jsonDecode(response.body);
@@ -276,7 +276,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/weather/pollen/forecast?lat=$latitude&lon=$longitude&days=$days'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
     );
 
     return jsonDecode(response.body);
@@ -289,7 +289,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/health/recommendations?lat=$latitude&lon=$longitude'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
     );
 
     return jsonDecode(response.body);
@@ -298,7 +298,7 @@ class ApiService {
   static Future<List<dynamic>> getHealthAlerts() async {
     final response = await http.get(
       Uri.parse('$baseUrl/health/alerts'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
     );
 
     return jsonDecode(response.body);
@@ -311,7 +311,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/air-quality/demo/history/$pinId?days=$days'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
     );
 
     return jsonDecode(response.body);
@@ -323,7 +323,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/weather/demo/history/$pinId?days=$days'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
     );
 
     return jsonDecode(response.body);
@@ -336,7 +336,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/radon/current?lat=$latitude&lon=$longitude'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
     );
 
     return jsonDecode(response.body);
@@ -345,7 +345,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getRadonZones() async {
     final response = await http.get(
       Uri.parse('$baseUrl/radon/zones'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
     );
 
     return jsonDecode(response.body);
@@ -357,7 +357,7 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/radon/demo/history/$pinId?days=$days'),
-      headers: _getHeaders(),
+      headers: getHeaders(),
     );
 
     // Extract history array from the wrapped response
@@ -370,7 +370,7 @@ class ApiService {
   ) async {
     final response = await http.post(
       Uri.parse('$baseUrl/radon/batch'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
       body: jsonEncode({
         'locations': locations.map((loc) => {
           'lat': loc['latitude'],
@@ -388,7 +388,7 @@ class ApiService {
   ) async {
     final response = await http.post(
       Uri.parse('$baseUrl/air-quality/batch'),
-      headers: _getHeaders(includeAuth: false),
+      headers: getHeaders(includeAuth: false),
       body: jsonEncode({
         'locations': locations.map((loc) => {
           'latitude': loc['latitude'],

@@ -72,6 +72,7 @@ dependencies:
 
   # Deep link handling
   app_links: ^3.5.0
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:
