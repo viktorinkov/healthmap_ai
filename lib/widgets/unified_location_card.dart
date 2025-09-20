@@ -4,9 +4,9 @@ import '../models/air_quality.dart';
 import '../models/environmental_measurements.dart';
 import '../services/environmental_measurements_service.dart';
 import '../screens/charts/location_charts_screen.dart';
+import '../screens/charts/location_forecast_screen.dart';
 import 'environmental_measurements_card.dart';
 import 'pin_info_dialog.dart';
-import 'air_quality_forecast_section.dart';
 
 class UnifiedLocationCard extends StatefulWidget {
   final PinnedLocation? location;
@@ -95,8 +95,6 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
                 _buildPollutantGrid(),
                 const SizedBox(height: 12),
                 _buildHealthRecommendationTags(),
-                const SizedBox(height: 16),
-                _buildForecastSection(),
                 const SizedBox(height: 12),
                 _buildActionButtons(),
               ] else ...[
@@ -401,23 +399,42 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
   }
 
   Widget _buildActionButtons() {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _navigateToCharts,
-            icon: const Icon(Icons.analytics),
-            label: const Text('Charts'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _navigateToCharts,
+                icon: const Icon(Icons.analytics),
+                label: const Text('History'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _navigateToForecast,
+                icon: const Icon(Icons.schedule),
+                label: const Text('Forecast'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: _showDetailedInfo,
             icon: const Icon(Icons.info_outline),
@@ -473,6 +490,34 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
     }
   }
 
+  void _navigateToForecast() {
+    if (widget.location != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LocationForecastScreen(location: widget.location!),
+        ),
+      );
+    } else if (widget.isCurrentLocation) {
+      // Create a temporary location for current location forecast
+      final currentLocation = PinnedLocation(
+        id: 'current_location',
+        name: 'Current Location',
+        latitude: 29.7604, // Default Houston coordinates
+        longitude: -95.3698,
+        type: LocationType.other,
+        address: '',
+        createdAt: DateTime.now(),
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => LocationForecastScreen(location: currentLocation),
+        ),
+      );
+    }
+  }
+
   AirQualityStatus _getStatusFromUniversalAqi() {
     final aqi = widget.airQuality!.metrics.universalAqi ??
                  (100 - widget.airQuality!.metrics.overallScore).round();
@@ -480,32 +525,6 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
     return AirQualityStatusExtension.fromScore(aqi.toDouble());
   }
 
-  Widget _buildForecastSection() {
-    // Get location coordinates for the forecast
-    double? latitude;
-    double? longitude;
-    String? locationName;
-
-    if (widget.location != null) {
-      latitude = widget.location!.latitude;
-      longitude = widget.location!.longitude;
-      locationName = widget.location!.name;
-    } else if (widget.isCurrentLocation && widget.airQuality != null) {
-      latitude = widget.airQuality!.latitude;
-      longitude = widget.airQuality!.longitude;
-      locationName = 'Current Location';
-    }
-
-    if (latitude == null || longitude == null) {
-      return const SizedBox.shrink();
-    }
-
-    return AirQualityForecastSection(
-      latitude: latitude,
-      longitude: longitude,
-      locationName: locationName,
-    );
-  }
 
   void _showDetailedInfo() {
     if (widget.location != null && widget.airQuality != null) {

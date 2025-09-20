@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/air_quality_forecast.dart';
 import '../services/air_quality_forecast_service.dart';
 import 'pollutant_forecast_chart.dart';
+import 'aqi_overview_chart.dart';
 
 class AirQualityForecastSection extends StatefulWidget {
   final double latitude;
@@ -190,8 +191,11 @@ class _AirQualityForecastSectionState extends State<AirQualityForecastSection> {
 
     return Column(
       children: [
-        // Summary of next 12 hours
-        _buildForecastSummary(context),
+        // AQI Overview Chart
+        AqiOverviewChart(
+          forecastHours: _forecast!.next12Hours,
+          height: 250,
+        ),
         const SizedBox(height: 20),
 
         // Individual pollutant charts
@@ -201,7 +205,7 @@ class _AirQualityForecastSectionState extends State<AirQualityForecastSection> {
           if (forecastData.isEmpty) {
             return PollutantForecastChart(
               pollutantCode: code,
-              forecastData: [],
+              forecastData: const [],
               height: 180,
             );
           }
@@ -219,115 +223,6 @@ class _AirQualityForecastSectionState extends State<AirQualityForecastSection> {
     );
   }
 
-  Widget _buildForecastSummary(BuildContext context) {
-    if (_forecast == null || _forecast!.next12Hours.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final next12Hours = _forecast!.next12Hours;
-    final aqiValues = next12Hours
-        .where((hour) => hour.universalAqi != null)
-        .map((hour) => hour.universalAqi!)
-        .toList();
-
-    if (aqiValues.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final minAqi = aqiValues.reduce((a, b) => a < b ? a : b);
-    final maxAqi = aqiValues.reduce((a, b) => a > b ? a : b);
-    final avgAqi = (aqiValues.reduce((a, b) => a + b) / aqiValues.length).round();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.air, size: 16, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                'AQI Overview',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildAqiStatItem(context, 'Min', minAqi, _getAqiColor(minAqi)),
-              _buildAqiStatItem(context, 'Avg', avgAqi, _getAqiColor(avgAqi)),
-              _buildAqiStatItem(context, 'Max', maxAqi, _getAqiColor(maxAqi)),
-            ],
-          ),
-          if (maxAqi > 100)
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning, size: 16, color: Colors.orange),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Air quality may be unhealthy during some hours',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAqiStatItem(BuildContext context, String label, int value, Color color) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            value.toString(),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Color _getAqiColor(int aqi) {
-    if (aqi <= 50) return Colors.green;
-    if (aqi <= 100) return Colors.yellow;
-    if (aqi <= 150) return Colors.orange;
-    return Colors.red;
-  }
 
   List<String> _getAvailablePollutants() {
     if (_forecast == null || _forecast!.next12Hours.isEmpty) {
