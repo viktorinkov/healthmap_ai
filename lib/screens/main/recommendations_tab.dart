@@ -4,7 +4,8 @@ import '../../models/air_quality.dart';
 import '../../models/pinned_location.dart';
 import '../../services/database_service.dart';
 import '../../services/gemini_service.dart';
-import '../charts/location_charts_screen.dart';
+import '../../services/unified_air_quality_service.dart';
+import '../../widgets/unified_location_card.dart';
 
 class RecommendationsTab extends StatefulWidget {
   const RecommendationsTab({Key? key}) : super(key: key);
@@ -57,168 +58,22 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
   }
 
   Future<void> _loadAirQualityForLocations() async {
-    _locationAirQuality.clear();
-
-    // Load air quality for each pinned location
-    for (final location in _pinnedLocations) {
-      // Try to find existing air quality data for this specific location
-      final existingData = await DatabaseService().getAirQualityData();
-      final locationSpecificData = existingData.where((data) =>
-        data.locationName.toLowerCase().contains(location.name.toLowerCase()) ||
-        (data.latitude - location.latitude).abs() < 0.01 &&
-        (data.longitude - location.longitude).abs() < 0.01
-      ).toList();
-
-      if (locationSpecificData.isNotEmpty) {
-        _locationAirQuality[location.id] = locationSpecificData.first;
-      } else {
-        // Generate sample air quality data for this location
-        _locationAirQuality[location.id] = _generateSampleAirQualityData(location);
-        // Save to database for future use
-        await DatabaseService().saveAirQualityData(_locationAirQuality[location.id]!);
-      }
-    }
+    _locationAirQuality = await UnifiedAirQualityService.loadAirQualityForLocations(
+      _pinnedLocations,
+      userProfile: _userProfile,
+    );
   }
 
   Future<void> _loadCurrentLocationAirQuality() async {
     // Generate sample current location air quality data
     // In a real app, this would use GPS and real API data
-    _currentLocationAirQuality = _generateCurrentLocationAirQualityData();
-  }
-
-  AirQualityData _generateCurrentLocationAirQualityData() {
-    // Generate realistic current location air quality data
-    final random = DateTime.now().millisecond;
-    final baseVariation = (random % 100) / 100.0;
-
-    // Base values for current location (Houston-like values)
-    final baseValues = {'pm25': 12.0, 'pm10': 25.0, 'o3': 42.0, 'no2': 24.0};
-
-    final pm25 = (baseValues['pm25']! * (1 + (baseVariation - 0.5) * 0.4)).clamp(5.0, 35.0);
-    final pm10 = (baseValues['pm10']! * (1 + (baseVariation - 0.5) * 0.4)).clamp(10.0, 60.0);
-    final o3 = (baseValues['o3']! * (1 + (baseVariation - 0.5) * 0.3)).clamp(20.0, 80.0);
-    final no2 = (baseValues['no2']! * (1 + (baseVariation - 0.5) * 0.4)).clamp(10.0, 50.0);
-
-    // Optional pollutants
-    final co = random % 3 == 0 ? (200 + (baseVariation * 300)).clamp(100.0, 800.0) : null;
-    final so2 = random % 4 == 0 ? (5 + (baseVariation * 15)).clamp(2.0, 25.0) : null;
-
-    final metrics = AirQualityMetrics(
-      pm25: pm25,
-      pm10: pm10,
-      o3: o3,
-      no2: no2,
-      co: co,
-      so2: so2,
-      wildfireIndex: (baseVariation * 30).clamp(0.0, 40.0),
-      radon: (1.5 + baseVariation * 2).clamp(1.0, 4.0),
-      universalAqi: null,
-    );
-
-    final status = AirQualityStatusExtension.fromScore(metrics.overallScore);
-
-    return AirQualityData(
-      id: 'current_location_${DateTime.now().millisecondsSinceEpoch}',
-      locationName: 'Current Location',
-      latitude: 29.7604, // Houston coordinates as default
-      longitude: -95.3698,
-      timestamp: DateTime.now().subtract(Duration(minutes: random % 30)),
-      metrics: metrics,
-      status: status,
-      statusReason: _generateStatusReason(metrics, status),
+    _currentLocationAirQuality = UnifiedAirQualityService.generateCurrentLocationAirQualityData(
+      userProfile: _userProfile,
     );
   }
 
-  AirQualityData _generateSampleAirQualityData(PinnedLocation location) {
-    // Generate realistic but varied air quality data based on location type and coordinates
-    final random = DateTime.now().millisecond + location.hashCode;
-    final baseVariation = (random % 100) / 100.0; // 0.0 to 1.0
 
-    // Different base values based on location type
-    Map<String, double> baseValues;
-    switch (location.type) {
-      case LocationType.home:
-        baseValues = {'pm25': 8.0, 'pm10': 18.0, 'o3': 35.0, 'no2': 18.0};
-        break;
-      case LocationType.work:
-        baseValues = {'pm25': 15.0, 'pm10': 30.0, 'o3': 50.0, 'no2': 30.0};
-        break;
-      case LocationType.gym:
-        baseValues = {'pm25': 12.0, 'pm10': 25.0, 'o3': 45.0, 'no2': 25.0};
-        break;
-      case LocationType.school:
-        baseValues = {'pm25': 10.0, 'pm10': 22.0, 'o3': 40.0, 'no2': 22.0};
-        break;
-      case LocationType.other:
-      default:
-        baseValues = {'pm25': 13.0, 'pm10': 27.0, 'o3': 47.0, 'no2': 27.0};
-        break;
-    }
 
-    // Add variation based on location coordinates (simulate geographic differences)
-    final latVariation = (location.latitude % 1) * 0.3; // 0.0 to 0.3
-    final lngVariation = (location.longitude.abs() % 1) * 0.2; // 0.0 to 0.2
-
-    final pm25 = (baseValues['pm25']! * (1 + (baseVariation - 0.5) * 0.4 + latVariation)).clamp(5.0, 35.0);
-    final pm10 = (baseValues['pm10']! * (1 + (baseVariation - 0.5) * 0.4 + lngVariation)).clamp(10.0, 60.0);
-    final o3 = (baseValues['o3']! * (1 + (baseVariation - 0.5) * 0.3 + latVariation)).clamp(20.0, 80.0);
-    final no2 = (baseValues['no2']! * (1 + (baseVariation - 0.5) * 0.4 + lngVariation)).clamp(10.0, 50.0);
-
-    // Optional pollutants with some variation
-    final co = random % 3 == 0 ? (200 + (baseVariation * 300)).clamp(100.0, 800.0) : null;
-    final so2 = random % 4 == 0 ? (5 + (baseVariation * 15)).clamp(2.0, 25.0) : null;
-
-    final metrics = AirQualityMetrics(
-      pm25: pm25,
-      pm10: pm10,
-      o3: o3,
-      no2: no2,
-      co: co,
-      so2: so2,
-      wildfireIndex: (baseVariation * 30).clamp(0.0, 40.0),
-      radon: (1.5 + baseVariation * 2).clamp(1.0, 4.0),
-      universalAqi: null, // Will be calculated
-    );
-
-    final status = AirQualityStatusExtension.fromScore(metrics.overallScore);
-
-    return AirQualityData(
-      id: '${location.id}_${DateTime.now().millisecondsSinceEpoch}',
-      locationName: location.name,
-      latitude: location.latitude,
-      longitude: location.longitude,
-      timestamp: DateTime.now().subtract(Duration(minutes: random % 120)),
-      metrics: metrics,
-      status: status,
-      statusReason: _generateStatusReason(metrics, status),
-    );
-  }
-
-  String _generateStatusReason(AirQualityMetrics metrics, AirQualityStatus status) {
-    final concerns = <String>[];
-
-    if (metrics.pm25 > 15) concerns.add('elevated PM2.5');
-    if (metrics.pm10 > 30) concerns.add('elevated PM10');
-    if (metrics.o3 > 50) concerns.add('high ozone');
-    if (metrics.no2 > 30) concerns.add('elevated NO₂');
-    if (metrics.co != null && metrics.co! > 500) concerns.add('carbon monoxide');
-    if (metrics.so2 != null && metrics.so2! > 15) concerns.add('sulfur dioxide');
-
-    switch (status) {
-      case AirQualityStatus.good:
-        return concerns.isEmpty
-          ? 'All air quality metrics are within healthy ranges'
-          : 'Generally good air quality with minor ${concerns.first} levels';
-      case AirQualityStatus.caution:
-        return concerns.isEmpty
-          ? 'Moderate air quality - sensitive individuals should be cautious'
-          : 'Moderate air quality due to ${concerns.take(2).join(' and ')}';
-      case AirQualityStatus.avoid:
-        return concerns.isEmpty
-          ? 'Poor air quality - limit outdoor exposure'
-          : 'Poor air quality due to ${concerns.take(2).join(' and ')} - avoid prolonged outdoor activities';
-    }
-  }
 
   Future<void> _generatePersonalizedRecommendations() async {
     if (_userProfile == null) return;
@@ -443,58 +298,10 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
       );
     }
 
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.location_on,
-                  color: Theme.of(context).colorScheme.secondary,
-                  size: 24,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Here & Now Risk',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSecondaryContainer,
-                        ),
-                      ),
-                      Text(
-                        'Current location air quality',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSecondaryContainer.withValues(alpha: 0.7),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _buildStatusBadge(_currentLocationAirQuality!.status),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildUniversalAqi(_currentLocationAirQuality!),
-            const SizedBox(height: 12),
-            _buildPollutantGrid(_currentLocationAirQuality!.metrics),
-            const SizedBox(height: 12),
-            _buildHealthRecommendationTags(_currentLocationAirQuality!),
-            const SizedBox(height: 12),
-            _buildCurrentLocationChartsButton(),
-          ],
-        ),
-      ),
+    return UnifiedLocationCard(
+      airQuality: _currentLocationAirQuality,
+      isCurrentLocation: true,
+      onRefresh: _loadData,
     );
   }
 
@@ -503,293 +310,23 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
       final airQuality = _locationAirQuality[location.id];
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
-        child: _buildLocationCard(location, airQuality),
+        child: UnifiedLocationCard(
+          location: location,
+          airQuality: airQuality,
+          showFullDetails: false,
+          onRefresh: _loadData,
+        ),
       );
     }).toList();
   }
 
-  Widget _buildLocationCard(PinnedLocation location, AirQualityData? airQuality) {
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  location.type.icon,
-                  style: const TextStyle(fontSize: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        location.name,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        '${location.latitude.toStringAsFixed(4)}, ${location.longitude.toStringAsFixed(4)}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (airQuality != null) _buildStatusBadge(airQuality.status),
-              ],
-            ),
-            if (airQuality != null) ...[
-              const SizedBox(height: 16),
-              _buildUniversalAqi(airQuality),
-              const SizedBox(height: 12),
-              _buildPollutantGrid(airQuality.metrics),
-              const SizedBox(height: 12),
-              _buildHealthRecommendationTags(airQuality),
-              const SizedBox(height: 12),
-              _buildChartsButton(location),
-            ] else ...[
-              const SizedBox(height: 12),
-              Text(
-                'Air quality data not available',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildStatusBadge(AirQualityStatus status) {
-    Color color;
-    switch (status) {
-      case AirQualityStatus.good:
-        color = Colors.green;
-        break;
-      case AirQualityStatus.caution:
-        color = Colors.orange;
-        break;
-      case AirQualityStatus.avoid:
-        color = Colors.red;
-        break;
-    }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        status.displayName.toUpperCase(),
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onPrimary,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
 
-  Widget _buildUniversalAqi(AirQualityData airQuality) {
-    final aqi = airQuality.metrics.universalAqi ?? (100 - airQuality.metrics.overallScore).round();
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.air,
-            size: 20,
-            color: Theme.of(context).colorScheme.secondary,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Universal AQI: ',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-          Text(
-            aqi.toString(),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildPollutantGrid(AirQualityMetrics metrics) {
-    final pollutants = [
-      _PollutantInfo('PM2.5', metrics.pm25, 'μg/m³'),
-      _PollutantInfo('PM10', metrics.pm10, 'μg/m³'),
-      _PollutantInfo('O₃', metrics.o3, 'ppb'),
-      _PollutantInfo('NO₂', metrics.no2, 'ppb'),
-      if (metrics.co != null) _PollutantInfo('CO', metrics.co!, 'ppb'),
-      if (metrics.so2 != null) _PollutantInfo('SO₂', metrics.so2!, 'ppb'),
-    ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Pollutants',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSecondaryContainer,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: pollutants.map((pollutant) => _buildPollutantChip(pollutant)).toList(),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildPollutantChip(_PollutantInfo pollutant) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Text(
-        '${pollutant.name}: ${pollutant.value.toStringAsFixed(1)} ${pollutant.unit}',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHealthRecommendationTags(AirQualityData airQuality) {
-    // Generate sample health recommendations based on user profile
-    final tags = _generateSampleHealthTags(airQuality);
-
-    if (tags.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Health Recommendations',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onSecondaryContainer,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: tags.map((tag) => _buildHealthTag(tag)).toList(),
-        ),
-      ],
-    );
-  }
-
-  List<HealthRecommendationTag> _generateSampleHealthTags(AirQualityData airQuality) {
-    final tags = <HealthRecommendationTag>[];
-
-    // Generate tags based on user profile
-    if (_userProfile?.conditions.contains(HealthCondition.asthma) == true) {
-      tags.add(HealthRecommendationTag(
-        population: HealthPopulation.lungDisease,
-        recommendation: airQuality.status == AirQualityStatus.good ? 'Safe for outdoor activities' : 'Consider staying indoors',
-        level: airQuality.status == AirQualityStatus.good ? HealthAdviceLevel.safe : HealthAdviceLevel.caution,
-      ));
-    }
-
-    if (_userProfile?.ageGroup == AgeGroup.child) {
-      tags.add(HealthRecommendationTag(
-        population: HealthPopulation.children,
-        recommendation: airQuality.status == AirQualityStatus.good ? 'Good for outdoor play' : 'Limit outdoor activities',
-        level: airQuality.status == AirQualityStatus.good ? HealthAdviceLevel.safe : HealthAdviceLevel.caution,
-      ));
-    }
-
-    if (_userProfile?.lifestyleRisks.contains(LifestyleRisk.athlete) == true) {
-      tags.add(HealthRecommendationTag(
-        population: HealthPopulation.athletes,
-        recommendation: airQuality.status == AirQualityStatus.good ? 'Safe for training' : 'Consider indoor workouts',
-        level: airQuality.status == AirQualityStatus.good ? HealthAdviceLevel.safe : HealthAdviceLevel.caution,
-      ));
-    }
-
-    // Always add general population recommendation
-    tags.add(HealthRecommendationTag(
-      population: HealthPopulation.general,
-      recommendation: airQuality.status == AirQualityStatus.good
-        ? 'Good air quality for everyone'
-        : 'Sensitive individuals should limit outdoor exposure',
-      level: airQuality.status == AirQualityStatus.good ? HealthAdviceLevel.safe : HealthAdviceLevel.caution,
-    ));
-
-    return tags;
-  }
-
-  Widget _buildHealthTag(HealthRecommendationTag tag) {
-    Color color;
-    switch (tag.level) {
-      case HealthAdviceLevel.safe:
-        color = Colors.green;
-        break;
-      case HealthAdviceLevel.caution:
-        color = Colors.orange;
-        break;
-      case HealthAdviceLevel.avoid:
-        color = Colors.red;
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.25),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(tag.population.icon, style: const TextStyle(fontSize: 12)),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              tag.recommendation,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSecondaryContainer,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildPersonalizedRecommendationsSection() {
     return Card(
@@ -836,69 +373,6 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     );
   }
 
-  Widget _buildChartsButton(PinnedLocation location) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => LocationChartsScreen(location: location),
-            ),
-          );
-        },
-        icon: const Icon(Icons.analytics),
-        label: const Text('Charts'),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildCurrentLocationChartsButton() {
-    final currentLocation = PinnedLocation(
-      id: 'current_location',
-      name: 'Current Location',
-      latitude: 29.7604, // Houston coordinates as default
-      longitude: -95.3698,
-      type: LocationType.other,
-      address: '',
-      createdAt: DateTime.now(),
-    );
-
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => LocationChartsScreen(location: currentLocation),
-            ),
-          );
-        },
-        icon: const Icon(Icons.analytics),
-        label: const Text('Charts'),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-class _PollutantInfo {
-  final String name;
-  final double value;
-  final String unit;
-
-  _PollutantInfo(this.name, this.value, this.unit);
-}
