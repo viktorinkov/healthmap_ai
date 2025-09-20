@@ -190,12 +190,15 @@ ScaffoldMessenger.of(context).showSnackBar(
    - Use proper state management
    - Handle errors gracefully
    - Test on multiple screen sizes
+   - **IMPORTANT: Always test on Android emulator/device, NOT on web browser**
+   - Run using: `flutter run -d emulator-5554` or available Android device
 
 3. **Before Committing**
    - Run `flutter analyze`
    - Run `flutter test`
    - Verify accessibility compliance
    - Update documentation if needed
+   - Test on Android device/emulator before finalizing
 
 ## Super Intelligent AI Assistant Guidelines
 

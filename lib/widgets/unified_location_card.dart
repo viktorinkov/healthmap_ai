@@ -3,6 +3,7 @@ import '../models/pinned_location.dart';
 import '../models/air_quality.dart';
 import '../screens/charts/location_charts_screen.dart';
 import '../screens/charts/location_forecast_screen.dart';
+import '../screens/main/air_quality_details_screen.dart';
 
 class UnifiedLocationCard extends StatefulWidget {
   final PinnedLocation? location;
@@ -43,7 +44,7 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
         : Theme.of(context).colorScheme.surface,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: widget.location != null && !widget.hideDetailsButton ? () => _showDetailedInfo() : null,
+        onTap: widget.location != null && !widget.hideDetailsButton ? () => _navigateToDetails() : null,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -56,7 +57,7 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
                   _buildGeminiAssessment(),
                   const SizedBox(height: 12),
                 ],
-                _buildPollutantGrid(),
+                _buildHighlights(),
                 const SizedBox(height: 12),
                 _buildHealthRecommendationTags(),
                 const SizedBox(height: 12),
@@ -197,46 +198,200 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
     );
   }
 
-  Widget _buildPollutantGrid() {
+  Widget _buildHighlights() {
     final metrics = widget.airQuality!.metrics;
-    debugPrint('UnifiedLocationCard - Wildfire Index: ${metrics.wildfireIndex}, Radon: ${metrics.radon}');
-    final pollutants = [
-      // Core pollutants (always present)
-      _PollutantInfo('PM2.5', metrics.pm25, 'μg/m³', true),
-      _PollutantInfo('PM10', metrics.pm10, 'μg/m³', true),
-      _PollutantInfo('O₃', metrics.o3, 'ppb', true),
-      _PollutantInfo('NO₂', metrics.no2, 'ppb', true),
-      // Optional pollutants
-      _PollutantInfo('CO', metrics.co, 'ppb', metrics.co != null),
-      _PollutantInfo('SO₂', metrics.so2, 'ppb', metrics.so2 != null),
-      _PollutantInfo('NOx', metrics.nox, 'ppb', metrics.nox != null),
-      _PollutantInfo('NO', metrics.no, 'ppb', metrics.no != null),
-      _PollutantInfo('NH₃', metrics.nh3, 'ppb', metrics.nh3 != null),
-      _PollutantInfo('C₆H₆', metrics.c6h6, 'μg/m³', metrics.c6h6 != null),
-      _PollutantInfo('Ox', metrics.ox, 'ppb', metrics.ox != null),
-      _PollutantInfo('NMHC', metrics.nmhc, 'ppb', metrics.nmhc != null),
-      _PollutantInfo('TRS', metrics.trs, 'μg/m³', metrics.trs != null),
-      // Additional metrics - only show if available
-      if (metrics.universalAqi != null) _PollutantInfo('Universal AQI', metrics.universalAqi!.toDouble(), '', true),
-      _PollutantInfo('Radon', metrics.radon, 'pCi/L', true),
-      // Detailed radon information - ALWAYS show, even if null
-      _PollutantInfo('EPA Zone', metrics.radonEpaZone?.toDouble(), '', metrics.radonEpaZone != null),
-      _PollutantInfo('Radon Risk', null, metrics.radonRiskLevel ?? 'N/A', metrics.radonRiskLevel != null),
-      _PollutantInfo('Zone Desc', null, metrics.radonZoneDescription ?? 'N/A', metrics.radonZoneDescription != null),
-      _PollutantInfo('Radon Recommendation', null, metrics.radonRecommendation ?? 'N/A', metrics.radonRecommendation != null),
-      // Detailed wildfire information - ALWAYS show, even if null
-      _PollutantInfo('Nearby Fires', metrics.wildfireNearbyFires?.toDouble(), 'fires', metrics.wildfireNearbyFires != null),
-      _PollutantInfo('Closest Fire', metrics.wildfireClosestDistance, 'km', metrics.wildfireClosestDistance != null),
-      _PollutantInfo('Fire Risk', null, metrics.wildfireRiskLevel ?? 'N/A', metrics.wildfireRiskLevel != null),
-      _PollutantInfo('Smoke Impact', null, metrics.wildfireSmokeImpact ?? 'N/A', metrics.wildfireSmokeImpact != null),
-      _PollutantInfo('Fire AQ Impact', null, metrics.wildfireAirQualityImpact ?? 'N/A', metrics.wildfireAirQualityImpact != null),
-    ];
+    final highlights = <_HighlightInfo>[];
+
+    // Collect metrics with their deviation from normal (higher score = worse)
+    final deviations = <_MetricDeviation>[];
+
+    // PM2.5 (normal: 0-12)
+    if (metrics.pm25 > 12) {
+      deviations.add(_MetricDeviation(
+        label: 'PM2.5: ${metrics.pm25.toStringAsFixed(1)} μg/m³',
+        score: metrics.pm25 / 12, // Higher score = worse
+        severity: metrics.pm25 > 55 ? HighlightSeverity.high
+                : metrics.pm25 > 35 ? HighlightSeverity.medium
+                : HighlightSeverity.low,
+      ));
+    }
+
+    // PM10 (normal: 0-54)
+    if (metrics.pm10 > 54) {
+      deviations.add(_MetricDeviation(
+        label: 'PM10: ${metrics.pm10.toStringAsFixed(1)} μg/m³',
+        score: metrics.pm10 / 54,
+        severity: metrics.pm10 > 154 ? HighlightSeverity.high
+                : metrics.pm10 > 100 ? HighlightSeverity.medium
+                : HighlightSeverity.low,
+      ));
+    }
+
+    // Ozone (normal: 0-54)
+    if (metrics.o3 > 54) {
+      deviations.add(_MetricDeviation(
+        label: 'O₃: ${metrics.o3.toStringAsFixed(0)} ppb',
+        score: metrics.o3 / 54,
+        severity: metrics.o3 > 85 ? HighlightSeverity.high
+                : metrics.o3 > 70 ? HighlightSeverity.medium
+                : HighlightSeverity.low,
+      ));
+    }
+
+    // NO2 (normal: 0-53)
+    if (metrics.no2 > 53) {
+      deviations.add(_MetricDeviation(
+        label: 'NO₂: ${metrics.no2.toStringAsFixed(0)} ppb',
+        score: metrics.no2 / 53,
+        severity: metrics.no2 > 150 ? HighlightSeverity.high
+                : metrics.no2 > 100 ? HighlightSeverity.medium
+                : HighlightSeverity.low,
+      ));
+    }
+
+    // CO (normal: 0-4400)
+    if (metrics.co != null && metrics.co! > 4400) {
+      deviations.add(_MetricDeviation(
+        label: 'CO: ${metrics.co!.toStringAsFixed(0)} ppb',
+        score: metrics.co! / 4400,
+        severity: metrics.co! > 9400 ? HighlightSeverity.high
+                : HighlightSeverity.medium,
+      ));
+    }
+
+    // SO2 (normal: 0-35)
+    if (metrics.so2 != null && metrics.so2! > 35) {
+      deviations.add(_MetricDeviation(
+        label: 'SO₂: ${metrics.so2!.toStringAsFixed(0)} ppb',
+        score: metrics.so2! / 35,
+        severity: metrics.so2! > 75 ? HighlightSeverity.high
+                : HighlightSeverity.medium,
+      ));
+    }
+
+    // Wildfire Index (normal: 0)
+    if (metrics.wildfireIndex != null && metrics.wildfireIndex! > 0) {
+      deviations.add(_MetricDeviation(
+        label: 'Wildfire Index: ${metrics.wildfireIndex!.toStringAsFixed(0)}',
+        score: metrics.wildfireIndex! * 2, // Give wildfire high weight
+        severity: metrics.wildfireIndex! > 50 ? HighlightSeverity.high
+                : metrics.wildfireIndex! > 10 ? HighlightSeverity.medium
+                : HighlightSeverity.low,
+      ));
+    }
+
+    // Radon (normal: <2.0)
+    if (metrics.radon != null && metrics.radon! >= 2.0) {
+      deviations.add(_MetricDeviation(
+        label: 'Radon: ${metrics.radon!.toStringAsFixed(1)} pCi/L',
+        score: metrics.radon! / 2,
+        severity: metrics.radon! >= 4.0 ? HighlightSeverity.high
+                : HighlightSeverity.medium,
+      ));
+    }
+
+    // Universal AQI (normal: 0-50)
+    if (metrics.universalAqi != null && metrics.universalAqi! > 50) {
+      deviations.add(_MetricDeviation(
+        label: 'Universal AQI: ${metrics.universalAqi}',
+        score: metrics.universalAqi! / 50,
+        severity: metrics.universalAqi! > 150 ? HighlightSeverity.high
+                : metrics.universalAqi! > 100 ? HighlightSeverity.medium
+                : HighlightSeverity.low,
+      ));
+    }
+
+    // If we have deviations, show them
+    if (deviations.isNotEmpty) {
+      // Sort by score (highest deviation first)
+      deviations.sort((a, b) => b.score.compareTo(a.score));
+
+      // Take all significant deviations
+      for (final dev in deviations) {
+        highlights.add(_HighlightInfo(
+          icon: dev.severity == HighlightSeverity.high ? Icons.warning
+              : dev.severity == HighlightSeverity.medium ? Icons.priority_high
+              : Icons.info,
+          label: dev.label,
+          severity: dev.severity,
+        ));
+      }
+    }
+
+    // If we have fewer than 3 highlights, add the highest current values even if normal
+    if (highlights.length < 3) {
+      final additionalMetrics = <_MetricDeviation>[];
+
+      // Add current values with their relative scores
+      additionalMetrics.add(_MetricDeviation(
+        label: 'PM2.5: ${metrics.pm25.toStringAsFixed(1)} μg/m³',
+        score: metrics.pm25,
+        severity: HighlightSeverity.good,
+      ));
+
+      additionalMetrics.add(_MetricDeviation(
+        label: 'PM10: ${metrics.pm10.toStringAsFixed(1)} μg/m³',
+        score: metrics.pm10,
+        severity: HighlightSeverity.good,
+      ));
+
+      additionalMetrics.add(_MetricDeviation(
+        label: 'O₃: ${metrics.o3.toStringAsFixed(0)} ppb',
+        score: metrics.o3,
+        severity: HighlightSeverity.good,
+      ));
+
+      additionalMetrics.add(_MetricDeviation(
+        label: 'NO₂: ${metrics.no2.toStringAsFixed(0)} ppb',
+        score: metrics.no2,
+        severity: HighlightSeverity.good,
+      ));
+
+      if (metrics.universalAqi != null) {
+        additionalMetrics.add(_MetricDeviation(
+          label: 'AQI: ${metrics.universalAqi}',
+          score: metrics.universalAqi!.toDouble(),
+          severity: HighlightSeverity.good,
+        ));
+      }
+
+      if (metrics.wildfireIndex != null) {
+        additionalMetrics.add(_MetricDeviation(
+          label: 'Wildfire Index: ${metrics.wildfireIndex!.toStringAsFixed(0)}',
+          score: metrics.wildfireIndex!,
+          severity: HighlightSeverity.good,
+        ));
+      }
+
+      if (metrics.radon != null) {
+        additionalMetrics.add(_MetricDeviation(
+          label: 'Radon: ${metrics.radon!.toStringAsFixed(1)} pCi/L',
+          score: metrics.radon!,
+          severity: HighlightSeverity.good,
+        ));
+      }
+
+      // Sort by value and add until we have at least 3
+      additionalMetrics.sort((a, b) => b.score.compareTo(a.score));
+
+      for (final metric in additionalMetrics) {
+        // Don't duplicate if already in highlights
+        if (!highlights.any((h) => h.label == metric.label)) {
+          highlights.add(_HighlightInfo(
+            icon: Icons.check_circle,
+            label: metric.label,
+            severity: metric.severity,
+          ));
+          if (highlights.length >= 3) break;
+        }
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Air Quality Metrics',
+          'Highlights',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
             color: widget.isCurrentLocation
@@ -248,54 +403,70 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: pollutants.map((pollutant) => _buildPollutantChip(pollutant)).toList(),
+          children: highlights.map((highlight) => _buildHighlightChip(highlight)).toList(),
         ),
       ],
     );
   }
 
-  Widget _buildPollutantChip(_PollutantInfo pollutant) {
-    final isAvailable = pollutant.isAvailable;
-    String displayValue;
-    
-    if (!isAvailable) {
-      displayValue = 'N/A';
-    } else if (pollutant.value != null) {
-      // Numeric value
-      displayValue = '${pollutant.value!.toStringAsFixed(1)} ${pollutant.unit}';
-    } else {
-      // Text value (unit contains the text)
-      displayValue = pollutant.unit;
+  Widget _buildHighlightChip(_HighlightInfo highlight) {
+    Color backgroundColor;
+    Color textColor;
+    Color iconColor;
+
+    switch (highlight.severity) {
+      case HighlightSeverity.good:
+        backgroundColor = Colors.green.withValues(alpha: 0.15);
+        textColor = Colors.green.shade800;
+        iconColor = Colors.green.shade600;
+        break;
+      case HighlightSeverity.low:
+        backgroundColor = Colors.blue.withValues(alpha: 0.15);
+        textColor = Colors.blue.shade800;
+        iconColor = Colors.blue.shade600;
+        break;
+      case HighlightSeverity.medium:
+        backgroundColor = Colors.orange.withValues(alpha: 0.15);
+        textColor = Colors.orange.shade800;
+        iconColor = Colors.orange.shade600;
+        break;
+      case HighlightSeverity.high:
+        backgroundColor = Colors.red.withValues(alpha: 0.15);
+        textColor = Colors.red.shade800;
+        iconColor = Colors.red.shade600;
+        break;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isAvailable
-            ? (widget.isCurrentLocation
-                ? Theme.of(context).colorScheme.surface.withValues(alpha: 0.7)
-                : Theme.of(context).colorScheme.surfaceContainer)
-            : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isAvailable
-              ? Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2)
-              : Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+          color: iconColor.withValues(alpha: 0.3),
         ),
       ),
-      child: Text(
-        '${pollutant.name}: $displayValue',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: isAvailable
-              ? (widget.isCurrentLocation
-                  ? Theme.of(context).colorScheme.onSecondaryContainer
-                  : Theme.of(context).colorScheme.onSurface)
-              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-          fontStyle: isAvailable ? FontStyle.normal : FontStyle.italic,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            highlight.icon,
+            size: 16,
+            color: iconColor,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            highlight.label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: textColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
+
 
   Widget _buildHealthRecommendationTags() {
     final tags = widget.airQuality?.healthRecommendations ?? [];
@@ -397,25 +568,22 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
                 ),
               ),
             ),
-          ],
-        ),
-        if (!widget.hideDetailsButton) ...[
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _showDetailedInfo,
-              icon: const Icon(Icons.info_outline),
-              label: const Text('Details'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: _navigateToDetails,
+                icon: const Icon(Icons.info_outline),
+                label: const Text('Details'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ],
     );
   }
@@ -459,6 +627,25 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
     }
   }
 
+  void _navigateToDetails() {
+    if (widget.airQuality != null) {
+      final locationName = widget.customTitle ??
+        (widget.isCurrentLocation
+          ? 'Current Location'
+          : widget.location?.name ?? 'Unknown Location');
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AirQualityDetailsScreen(
+            airQuality: widget.airQuality!,
+            locationName: locationName,
+          ),
+        ),
+      );
+    }
+  }
+
   void _navigateToForecast() {
     if (widget.location != null) {
       Navigator.push(
@@ -489,10 +676,6 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
 
 
 
-  void _showDetailedInfo() {
-    // This method is no longer needed when hideDetailsButton is true
-    // The dialog is already showing the full card
-  }
 
 }
 
@@ -503,4 +686,35 @@ class _PollutantInfo {
   final bool isAvailable;
 
   _PollutantInfo(this.name, this.value, this.unit, this.isAvailable);
+}
+
+enum HighlightSeverity {
+  good,
+  low,
+  medium,
+  high,
+}
+
+class _HighlightInfo {
+  final IconData icon;
+  final String label;
+  final HighlightSeverity severity;
+
+  _HighlightInfo({
+    required this.icon,
+    required this.label,
+    required this.severity,
+  });
+}
+
+class _MetricDeviation {
+  final String label;
+  final double score;
+  final HighlightSeverity severity;
+
+  _MetricDeviation({
+    required this.label,
+    required this.score,
+    required this.severity,
+  });
 }
