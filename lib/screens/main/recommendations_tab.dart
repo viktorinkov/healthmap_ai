@@ -5,6 +5,8 @@ import '../../models/air_quality.dart';
 import '../../models/pinned_location.dart';
 import '../../services/database_service.dart';
 import '../../services/gemini_service.dart';
+import '../../services/health_insights_service.dart';
+import '../../services/unified_health_service.dart';
 import '../../services/unified_air_quality_service.dart';
 import '../../services/air_quality_api_service.dart';
 import '../../widgets/unified_location_card.dart';
@@ -22,6 +24,8 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
   Map<String, AirQualityData> _locationAirQuality = {};
   AirQualityData? _currentLocationAirQuality;
   List<String> _personalizedRecommendations = [];
+  Map<String, dynamic>? _healthData;
+  Map<String, dynamic>? _unifiedInsights;
   bool _isLoading = true;
   bool _isGeneratingRecommendations = false;
   bool _isLoadingCurrentLocation = false;
@@ -45,6 +49,19 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
 
       // Load current location air quality data
       await _loadCurrentLocationAirQuality();
+
+      // Try to load health data from Python backend
+      try {
+        const userId = 'user_001'; // Demo user ID
+        _healthData = await HealthInsightsService.getHealthSummary(userId: userId);
+        _unifiedInsights = await UnifiedHealthService.getUnifiedRecommendation(
+          userId: userId,
+          currentLocation: {'latitude': 29.7604, 'longitude': -95.3698},
+        );
+      } catch (e) {
+        debugPrint('Health data not available: $e');
+        // Continue without health data
+      }
 
       // Generate personalized recommendations
       await _generatePersonalizedRecommendations();
@@ -222,6 +239,34 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
 
   List<String> _generatePinnedLocationRecommendations() {
     final recommendations = <String>[];
+
+    // Add unified health insights if available
+    if (_unifiedInsights != null && _unifiedInsights!['recommendation'] != null) {
+      recommendations.add('🌟 ${_unifiedInsights!['recommendation']}');
+    }
+
+    // Add health-specific insights if available
+    if (_healthData != null && _healthData!['success'] == true) {
+      final summary = _healthData!['summary'] ?? {};
+      final avgSteps = (double.tryParse(summary['avg_steps']?.toString() ?? '0') ?? 0.0).round();
+      final avgHeartRate = (double.tryParse(summary['avg_heart_rate']?.toString() ?? '0') ?? 0.0).round();
+      
+      if (avgSteps > 0) {
+        if (avgSteps >= 10000) {
+          recommendations.add('🚶‍♀️ Great activity level! You\'re averaging $avgSteps steps daily.');
+        } else if (avgSteps >= 7500) {
+          recommendations.add('👍 Good activity level with $avgSteps daily steps. Try to reach 10,000!');
+        } else {
+          recommendations.add('📈 Consider increasing activity. Current average: $avgSteps steps/day.');
+        }
+      }
+      
+      if (avgHeartRate > 0) {
+        if (avgHeartRate >= 60 && avgHeartRate <= 100) {
+          recommendations.add('❤️ Heart rate looks healthy (avg: $avgHeartRate bpm).');
+        }
+      }
+    }
 
     if (_pinnedLocations.isEmpty) {
       recommendations.add('📌 Add locations you visit frequently to get personalized air quality insights.');
