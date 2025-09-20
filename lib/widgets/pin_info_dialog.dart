@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/pinned_location.dart';
 import '../models/air_quality.dart';
+import '../models/environmental_health_scores.dart';
+import '../services/environmental_health_api_service.dart';
+import 'environmental_health_card.dart';
 
-class PinInfoDialog extends StatelessWidget {
+class PinInfoDialog extends StatefulWidget {
   final PinnedLocation location;
   final AirQualityData? airQuality;
 
@@ -13,22 +16,61 @@ class PinInfoDialog extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<PinInfoDialog> createState() => _PinInfoDialogState();
+}
+
+class _PinInfoDialogState extends State<PinInfoDialog> {
+  EnvironmentalHealthScores? _environmentalScores;
+  bool _loadingEnvironmental = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEnvironmentalHealth();
+  }
+
+  Future<void> _loadEnvironmentalHealth() async {
+    setState(() {
+      _loadingEnvironmental = true;
+    });
+
+    try {
+      final scores = await EnvironmentalHealthApiService.getEnvironmentalHealthScores(
+        locationId: widget.location.id,
+        latitude: widget.location.latitude,
+        longitude: widget.location.longitude,
+        locationName: widget.location.name,
+      );
+
+      if (mounted) {
+        setState(() {
+          _environmentalScores = scores;
+          _loadingEnvironmental = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingEnvironmental = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(28),
       ),
       child: Container(
-        width: MediaQuery.of(context).size.width * 0.85,
-        constraints: const BoxConstraints(maxHeight: 600),
+        width: MediaQuery.of(context).size.width * 0.9,
+        constraints: const BoxConstraints(maxHeight: 700),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildHeader(context),
-            if (airQuality != null)
-              Expanded(child: _buildContent(context))
-            else
-              _buildNoDataContent(context),
+            Expanded(child: _buildContent(context)),
             _buildActions(context),
           ],
         ),
@@ -49,7 +91,7 @@ class PinInfoDialog extends StatelessWidget {
       child: Row(
         children: [
           Text(
-            location.type.icon,
+            widget.location.type.icon,
             style: const TextStyle(fontSize: 24),
           ),
           const SizedBox(width: 12),
@@ -58,14 +100,14 @@ class PinInfoDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  location.name,
+                  widget.location.name,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.onPrimaryContainer,
                   ),
                 ),
                 Text(
-                  location.address ?? location.type.displayName,
+                  widget.location.address ?? widget.location.type.displayName,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
                   ),
@@ -73,25 +115,40 @@ class PinInfoDialog extends StatelessWidget {
               ],
             ),
           ),
-          if (airQuality != null) _buildStatusBadge(context, airQuality!.status),
+          if (widget.airQuality != null) _buildStatusBadge(context, widget.airQuality!.status),
         ],
       ),
     );
   }
 
   Widget _buildContent(BuildContext context) {
-    final data = airQuality!;
-
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildAirScoreSection(context, data),
-          const SizedBox(height: 20),
-          _buildJustificationSection(context, data),
-          const SizedBox(height: 20),
-          _buildPollutantSummary(context, data.metrics),
+          if (widget.airQuality != null) ...[
+            _buildAirScoreSection(context, widget.airQuality!),
+            const SizedBox(height: 20),
+            _buildJustificationSection(context, widget.airQuality!),
+            const SizedBox(height: 20),
+            _buildPollutantSummary(context, widget.airQuality!.metrics),
+            const SizedBox(height: 20),
+          ],
+          if (_loadingEnvironmental)
+            const Center(
+              child: Column(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading environmental health data...'),
+                ],
+              ),
+            )
+          else if (_environmentalScores != null)
+            EnvironmentalHealthCard(scores: _environmentalScores!)
+          else
+            _buildNoEnvironmentalData(context),
         ],
       ),
     );
@@ -270,6 +327,36 @@ class PinInfoDialog extends StatelessWidget {
           fontWeight: FontWeight.bold,
           fontSize: 12,
         ),
+      ),
+    );
+  }
+
+  Widget _buildNoEnvironmentalData(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Icon(
+            Icons.eco_outlined,
+            size: 48,
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Environmental Health Data Unavailable',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Unable to load comprehensive environmental health data for this location.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
       ),
     );
   }

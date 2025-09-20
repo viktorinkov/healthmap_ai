@@ -1,6 +1,7 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../models/user_health_profile.dart';
 import '../models/air_quality.dart';
+import '../models/environmental_health_scores.dart';
 import 'api_keys.dart';
 
 class GeminiService {
@@ -27,12 +28,14 @@ class GeminiService {
     required UserHealthProfile userProfile,
     required List<AirQualityData> recentAirQuality,
     String location = 'Houston',
+    EnvironmentalHealthScores? environmentalScores,
   }) async {
     try {
       final prompt = _buildRecommendationPrompt(
         userProfile: userProfile,
         recentAirQuality: recentAirQuality,
         location: location,
+        environmentalScores: environmentalScores,
       );
 
       if (model == null) {
@@ -55,6 +58,7 @@ class GeminiService {
     required UserHealthProfile userProfile,
     required List<AirQualityData> recentAirQuality,
     required String location,
+    EnvironmentalHealthScores? environmentalScores,
   }) {
     final currentAQ = recentAirQuality.isNotEmpty ? recentAirQuality.first : null;
 
@@ -69,24 +73,44 @@ HEALTH PROFILE:
 - Lifestyle Factors: ${userProfile.lifestyleRisks.map((r) => r.name).join(', ')}
 - Home Environment: ${userProfile.domesticRisks.map((r) => r.name).join(', ')}
 
-CURRENT AIR QUALITY in $location:
+CURRENT ENVIRONMENTAL CONDITIONS in $location:
 ${currentAQ != null ? '''
-- Status: ${currentAQ.status.displayName}
+- Air Quality Status: ${currentAQ.status.displayName}
 - PM2.5: ${currentAQ.metrics.pm25.toStringAsFixed(1)} μg/m³
 - PM10: ${currentAQ.metrics.pm10.toStringAsFixed(1)} μg/m³
 - Ozone: ${currentAQ.metrics.o3.toStringAsFixed(1)} ppb
 - NO2: ${currentAQ.metrics.no2.toStringAsFixed(1)} ppb
 - Wildfire Index: ${currentAQ.metrics.wildfireIndex.toStringAsFixed(1)}/100
 - Radon: ${currentAQ.metrics.radon.toStringAsFixed(1)} pCi/L
-''' : 'No current data available'}
+''' : 'No current air quality data available'}
+
+${environmentalScores != null ? '''
+COMPREHENSIVE ENVIRONMENTAL HEALTH ASSESSMENT:
+- Overall Score: ${environmentalScores.overall.score.toStringAsFixed(1)}/100 (${environmentalScores.overall.level.displayName})
+- Air Quality Score: ${environmentalScores.airQuality.score.toStringAsFixed(1)} - ${environmentalScores.airQuality.primaryConcern}
+- Weather Conditions: ${environmentalScores.meteorology.score.toStringAsFixed(1)} - ${environmentalScores.meteorology.primaryConcern}
+- Wildfire Risk: ${environmentalScores.wildfire.score.toStringAsFixed(1)} - ${environmentalScores.wildfire.riskDescription}
+- Pollen Levels: ${environmentalScores.aeroallergens.score.toStringAsFixed(1)} - ${environmentalScores.aeroallergens.dominantAllergen}
+- Indoor Environment: ${environmentalScores.indoorEnvironment.score.toStringAsFixed(1)} - ${environmentalScores.indoorEnvironment.primaryConcern}
+
+ACTIVITY SAFETY:
+- Outdoor Activities: ${environmentalScores.overall.safeForOutdoorActivity ? '✅ Safe' : '❌ Not Recommended'}
+- Exercise/Sports: ${environmentalScores.overall.safeForExercise ? '✅ Safe' : '❌ Not Recommended'}
+- Windows: ${environmentalScores.overall.windowsRecommendation ? '✅ Keep Open' : '❌ Keep Closed'}
+
+SPECIFIC ENVIRONMENTAL CONCERNS:
+${environmentalScores.overall.primaryConcerns.map((concern) => '- $concern').join('\n')}
+''' : 'Comprehensive environmental data not available'}
 
 INSTRUCTIONS:
 1. Provide 5-8 specific, actionable health recommendations
 2. Each recommendation should start with an emoji
 3. Consider the person's specific health conditions and sensitivities
-4. Include both outdoor activity guidance and indoor air quality tips
-5. Be encouraging but prioritize safety
-6. Format each recommendation as a separate line
+4. Use the comprehensive environmental assessment to provide targeted advice
+5. Address all environmental factors: air quality, weather, wildfire, pollen, and indoor conditions
+6. Include both outdoor activity guidance and indoor air quality tips
+7. Be encouraging but prioritize safety based on environmental conditions
+8. Format each recommendation as a separate line
 
 Generate personalized recommendations:
 ''';

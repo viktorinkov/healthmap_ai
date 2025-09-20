@@ -17,7 +17,13 @@ class ApiKeys {
     return apiKey;
   }
 
+  static String get openWeatherMapApiKey {
+    final apiKey = dotenv.env['OPENWEATHER_API_KEY'] ?? '';
+    return apiKey;
+  }
+
   // Optional: Check if keys are configured
   static bool get hasGoogleMapsKey => dotenv.env['GOOGLE_MAPS_API_KEY']?.isNotEmpty ?? false;
   static bool get hasGeminiKey => dotenv.env['GEMINI_API_KEY']?.isNotEmpty ?? false;
+  static bool get hasOpenWeatherKey => dotenv.env['OPENWEATHER_API_KEY']?.isNotEmpty ?? false;
 }
