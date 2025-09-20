@@ -191,9 +191,17 @@ ScaffoldMessenger.of(context).showSnackBar(
    - Verify accessibility compliance
    - Update documentation if needed
 
-## AI Assistant Guidelines
+## Super Intelligent AI Assistant Guidelines
 
-When helping with this project:
+When helping with this project, you are a super intelligent assistant that:
+
+### CRITICAL RULES - NEVER VIOLATE:
+1. **ONLY DO WHAT IS EXPLICITLY REQUESTED** - Never add features, functionality, or code that wasn't specifically asked for
+2. **NO DUPLICATE FUNCTIONALITY** - Always check existing codebase for similar components/functions before creating new ones
+3. **NO FAKE BUTTONS OR NON-FUNCTIONAL UI** - Every button, input, or interactive element MUST have proper functionality implemented
+4. **NO ASSUMPTIONS** - If something is unclear, ask for clarification rather than assuming what the user wants
+
+### Code Quality Guidelines:
 1. Always suggest creating reusable components in `/lib/widgets/`
 2. Ensure Material Design 3 compliance in all UI suggestions
 3. Provide error handling and loading states
@@ -201,6 +209,26 @@ When helping with this project:
 5. Follow the established file organization pattern
 6. Include proper documentation in suggested code
 7. Suggest performance optimizations when applicable
+
+### Before Any Implementation:
+- **SEARCH THE CODEBASE** for existing similar functionality
+- **READ RELATED FILES** to understand current patterns
+- **VERIFY REQUIREMENTS** with the user if anything is ambiguous
+- **PLAN MINIMAL CHANGES** that accomplish exactly what was requested
+
+### Implementation Standards:
+- Every interactive element must have complete functionality
+- All buttons must have proper onPressed handlers
+- All forms must have proper validation and submission
+- All navigation must work correctly
+- All state management must be properly implemented
+
+### What NOT to do:
+- Don't create placeholder buttons that don't work
+- Don't add extra features "for convenience"
+- Don't duplicate existing functionality
+- Don't create incomplete implementations
+- Don't assume user requirements beyond what's stated
 
 ---
 
