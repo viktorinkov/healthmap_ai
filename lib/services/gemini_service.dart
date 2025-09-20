@@ -7,6 +7,7 @@ import 'api_keys.dart';
 
 class GeminiService {
   static GenerativeModel? _model;
+  static GenerativeModel? _chatModel;
 
   static GenerativeModel? get model {
     if (_model == null) {
@@ -28,6 +29,27 @@ class GeminiService {
       }
     }
     return _model;
+  }
+
+  static GenerativeModel? get chatModel {
+    if (_chatModel == null) {
+      try {
+        final apiKey = ApiKeys.geminiApiKey;
+        debugPrint('Initializing Gemini chat model...');
+        if (apiKey.isNotEmpty) {
+          _chatModel = GenerativeModel(
+            model: 'gemini-2.5-pro',
+            apiKey: apiKey,
+          );
+          debugPrint('Gemini chat model (2.5 Pro) initialized successfully');
+        } else {
+          debugPrint('Gemini API key is empty');
+        }
+      } catch (e) {
+        debugPrint('Failed to initialize Gemini chat model: $e');
+      }
+    }
+    return _chatModel;
   }
 
   static Future<List<String>> generateHealthRecommendations({
@@ -483,4 +505,44 @@ Assessment:''';
 
 
   static bool get isConfigured => ApiKeys.hasGeminiKey;
+
+  static Future<String> generateChatResponse({
+    required List<Map<String, dynamic>> messages,
+    required String systemPrompt,
+  }) async {
+    try {
+      if (chatModel == null) {
+        return 'I apologize, but I\'m not configured properly. Please check the Gemini API key configuration.';
+      }
+
+      // Build conversation context
+      String conversationContext = systemPrompt + '\n\n=== CONVERSATION HISTORY ===\n';
+
+      for (final message in messages) {
+        final role = message['role'] as String;
+        final content = message['content'] as String;
+
+        if (role == 'user') {
+          conversationContext += '\nUser: $content';
+        } else if (role == 'assistant') {
+          conversationContext += '\nAssistant: $content';
+        }
+      }
+
+      conversationContext += '\n\n=== END CONVERSATION ===\n\nPlease provide a helpful, personalized response based on the user\'s latest message and all the comprehensive data you have access to. Be specific, actionable, and reference actual data when possible.';
+
+      debugPrint('Sending chat request to Gemini 2.5 Pro...');
+      final response = await chatModel!.generateContent([Content.text(conversationContext)]);
+
+      if (response.text != null) {
+        debugPrint('Received chat response from Gemini 2.5 Pro');
+        return response.text!.trim();
+      } else {
+        return 'I apologize, but I couldn\'t generate a response. Please try asking your question again.';
+      }
+    } catch (e) {
+      debugPrint('Error generating chat response: $e');
+      return 'I apologize, but I encountered an error while processing your request. Please try again.';
+    }
+  }
 }
