@@ -64,6 +64,7 @@ class EnvironmentalAlertsCard extends StatelessWidget {
     final airQuality = environmentalData['airQuality'] as Map<String, dynamic>?;
     final pollen = environmentalData['pollen'] as Map<String, dynamic>?;
     final wildfire = environmentalData['wildfire'] as Map<String, dynamic>?;
+    final radon = environmentalData['radon'] as Map<String, dynamic>?;
 
     return Card(
       child: Padding(
@@ -92,6 +93,10 @@ class EnvironmentalAlertsCard extends StatelessWidget {
             // Wildfire Section
             if (wildfire != null && !wildfire.containsKey('error'))
               _buildWildfireSection(context, wildfire),
+
+            // Radon Section
+            if (radon != null && !radon.containsKey('error'))
+              _buildRadonSection(context, radon),
 
             // Weather Alerts
             if (weather != null && weather['alerts'] != null)
@@ -329,6 +334,114 @@ class EnvironmentalAlertsCard extends StatelessWidget {
                     'Wildfire Alert: ${wildfire['airQualityImpact'] ?? 'Monitor conditions closely'}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildRadonSection(BuildContext context, Map<String, dynamic> radon) {
+    final radonLevel = radon['averageRadonLevel']?.toStringAsFixed(1) ?? 'No data';
+    final radonRisk = radon['radonRisk'] ?? 'Unknown';
+    final radonZone = radon['radonZone']?.toString() ?? 'Unknown';
+    final description = radon['description'] ?? 'No data available';
+
+    // Determine risk color
+    Color riskColor = Theme.of(context).colorScheme.primary;
+    if (radonRisk == 'High') {
+      riskColor = Theme.of(context).colorScheme.error;
+    } else if (radonRisk == 'Moderate') {
+      riskColor = Colors.orange;
+    } else if (radonRisk == 'Low') {
+      riskColor = Colors.green;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.home_outlined, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(
+              'Radon Risk',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildDataPoint(context, 'Level', radonLevel, 'pCi/L'),
+            _buildDataPoint(context, 'Risk', radonRisk, null),
+            _buildDataPoint(context, 'EPA Zone', radonZone, null),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          description,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+
+        // High risk warning for Houston (which should be low, but good to have the logic)
+        if (radonRisk == 'High' || (radon['averageRadonLevel'] != null && radon['averageRadonLevel'] >= 4.0))
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.errorContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.warning,
+                  color: Theme.of(context).colorScheme.onErrorContainer,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'EPA Action Level Exceeded: Consider radon testing and mitigation',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Info for Houston low risk
+        if (radonRisk == 'Low' && description.contains('Houston'))
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Houston area has low radon potential due to Gulf Coast geology',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
                     ),
                   ),
                 ),

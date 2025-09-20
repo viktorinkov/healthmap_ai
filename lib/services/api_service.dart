@@ -316,6 +316,57 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
+  // Radon data endpoints
+  static Future<Map<String, dynamic>> getRadonData({
+    required double latitude,
+    required double longitude,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/radon/current?lat=$latitude&lon=$longitude'),
+      headers: _getHeaders(includeAuth: false),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getRadonZones() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/radon/zones'),
+      headers: _getHeaders(includeAuth: false),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  static Future<List<dynamic>> getRadonHistory({
+    required int pinId,
+    int days = 7,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/radon/history/$pinId?days=$days'),
+      headers: _getHeaders(),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>> getRadonBatch(
+    List<Map<String, double>> locations,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/radon/batch'),
+      headers: _getHeaders(includeAuth: false),
+      body: jsonEncode({
+        'locations': locations.map((loc) => {
+          'lat': loc['latitude'],
+          'lon': loc['longitude'],
+        }).toList(),
+      }),
+    );
+
+    return jsonDecode(response.body);
+  }
+
   // Batch operations
   static Future<List<dynamic>> getAirQualityBatch(
     List<Map<String, double>> locations,
