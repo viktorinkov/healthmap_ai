@@ -27,7 +27,21 @@ app.use(compression());
 
 // CORS configuration
 app.use(cors({
-  origin: ['http://localhost:*', 'http://127.0.0.1:*'],
+  origin: function(origin, callback) {
+    // Allow requests from localhost, 127.0.0.1, Android emulator, and host IP
+    const allowedOrigins = [
+      /^http:\/\/localhost(:\d+)?$/,
+      /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+      /^http:\/\/10\.0\.2\.2(:\d+)?$/,
+      /^http:\/\/168\.5\.144\.41(:\d+)?$/
+    ];
+
+    // Allow requests with no origin (mobile apps)
+    if (!origin) return callback(null, true);
+
+    const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
+    callback(null, isAllowed);
+  },
   credentials: true
 }));
 

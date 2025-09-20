@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../models/pinned_location.dart';
 import '../../models/air_quality.dart';
 import '../../services/air_quality_api_service.dart';
+import '../../widgets/pollen_historical_chart.dart';
 
 class LocationChartsScreen extends StatefulWidget {
   final PinnedLocation location;
@@ -407,7 +408,48 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
           const SizedBox(height: 16),
           _buildPollutantChart('Universal AQI', '0-500', (data) => (data.metrics.universalAqi ?? 0).toDouble()),
         ],
+
+        // Pollen data section
+        const SizedBox(height: 24),
+        Text(
+          'Pollen Data',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildPollenDataUnavailableCard(),
       ],
+    );
+  }
+
+  Widget _buildPollenDataUnavailableCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Icon(
+              Icons.local_florist,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Historical Pollen Data N/A',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Historical pollen data is not available through the Google Pollen API. Please check the forecast section for current and upcoming pollen levels.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

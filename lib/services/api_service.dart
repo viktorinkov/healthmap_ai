@@ -1,10 +1,17 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
-  static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000/api';
+  static String get baseUrl {
+    // Use localhost for web and desktop, 10.0.2.2 for Android emulator
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.linux) {
+      return dotenv.env['API_BASE_URL']?.replaceAll('10.0.2.2', 'localhost') ?? 'http://localhost:3000/api';
+    }
+    return dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000/api';
+  }
   static String? _authToken;
 
   // Initialize and load saved token

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/pinned_location.dart';
 import '../../widgets/air_quality_forecast_section.dart';
+import '../../widgets/pollen_forecast_section.dart';
 
 class LocationForecastScreen extends StatefulWidget {
   final PinnedLocation location;
@@ -48,6 +49,11 @@ class _LocationForecastScreenState extends State<LocationForecastScreen> {
               ),
               const SizedBox(height: 24),
               AirQualityForecastSection(
+                latitude: widget.location.latitude,
+                longitude: widget.location.longitude,
+                locationName: widget.location.name,
+              ),
+              PollenForecastSection(
                 latitude: widget.location.latitude,
                 longitude: widget.location.longitude,
                 locationName: widget.location.name,

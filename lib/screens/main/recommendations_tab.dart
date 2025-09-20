@@ -145,7 +145,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
         // Add personalized health recommendations if user profile exists
         final airQualityWithRecommendations = _userProfile != null
             ? airQualityData.copyWith(
-                healthRecommendations: _mergeHealthRecommendations(
+                healthRecommendations: UnifiedAirQualityService.mergeHealthRecommendations(
                   airQualityData.healthRecommendations,
                   UnifiedAirQualityService.generateHealthRecommendations(
                     airQualityData,
@@ -176,30 +176,6 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     }
   }
 
-  List<HealthRecommendationTag> _mergeHealthRecommendations(
-    List<HealthRecommendationTag>? googleRecommendations,
-    List<HealthRecommendationTag> personalizedRecommendations,
-  ) {
-    final merged = <HealthRecommendationTag>[];
-
-    // Add Google API recommendations first (these are research-backed)
-    if (googleRecommendations != null) {
-      merged.addAll(googleRecommendations);
-    }
-
-    // Add personalized recommendations that don't conflict
-    for (final personalizedRec in personalizedRecommendations) {
-      // Check if we already have a recommendation for this population
-      final hasExisting = merged.any((existing) =>
-        existing.population == personalizedRec.population);
-
-      if (!hasExisting) {
-        merged.add(personalizedRec);
-      }
-    }
-
-    return merged;
-  }
 
 
   Future<void> _generatePersonalizedRecommendations() async {

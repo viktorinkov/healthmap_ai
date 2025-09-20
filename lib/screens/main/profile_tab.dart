@@ -66,6 +66,10 @@ class _ProfileTabState extends State<ProfileTab> {
         children: [
           _buildProfileSummaryCard(),
           const SizedBox(height: 16),
+          _buildAgeCard(),
+          const SizedBox(height: 16),
+          _buildRiskCalculationCard(),
+          const SizedBox(height: 16),
           _buildHealthConditionsCard(),
           const SizedBox(height: 16),
           _buildLifestyleFactorsCard(),
@@ -199,6 +203,118 @@ class _ProfileTabState extends State<ProfileTab> {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAgeCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _getAgeIcon(_userProfile!.ageGroup),
+                  color: Theme.of(context).primaryColor,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Age Information',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Theme.of(context).primaryColor.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.cake, color: Theme.of(context).primaryColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Age Group: ${_userProfile!.ageGroup.displayName}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _getAgeGroupDescription(_userProfile!.ageGroup),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRiskCalculationCard() {
+    final riskMultiplier = _userProfile!.riskMultiplier;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.calculate, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text(
+                  'Risk Sensitivity Calculation',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'How we calculate your risk sensitivity:',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your risk sensitivity score (${riskMultiplier.toStringAsFixed(1)}x) is calculated based on multiple factors that increase your vulnerability to air pollution. We start with a baseline of 1.0x and add risk factors: age-related vulnerabilities (+0.3x for children and older adults), pregnancy status (+0.4x), and specific health conditions (asthma/lung disease +0.5x, COPD +0.6x, heart disease +0.4x, diabetes +0.2x). This personalized multiplier helps us provide more accurate air quality recommendations tailored to your individual health profile.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                'Final Score: ${riskMultiplier.toStringAsFixed(1)}x baseline risk',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[700],
+                ),
               ),
             ),
           ],
@@ -493,5 +609,27 @@ class _ProfileTabState extends State<ProfileTab> {
 
   String _formatDate(DateTime date) {
     return '${date.month}/${date.day}/${date.year}';
+  }
+
+  IconData _getAgeIcon(AgeGroup ageGroup) {
+    switch (ageGroup) {
+      case AgeGroup.child:
+        return Icons.child_care;
+      case AgeGroup.adult:
+        return Icons.person;
+      case AgeGroup.olderAdult:
+        return Icons.elderly;
+    }
+  }
+
+  String _getAgeGroupDescription(AgeGroup ageGroup) {
+    switch (ageGroup) {
+      case AgeGroup.child:
+        return 'Children have developing respiratory systems that are more vulnerable to air pollution.';
+      case AgeGroup.adult:
+        return 'Adults typically have the strongest defense against air pollution effects.';
+      case AgeGroup.olderAdult:
+        return 'Older adults may have reduced immune function and increased sensitivity to air quality.';
+    }
   }
 }

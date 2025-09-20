@@ -199,6 +199,7 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
 
   Widget _buildPollutantGrid() {
     final metrics = widget.airQuality!.metrics;
+    debugPrint('UnifiedLocationCard - Wildfire Index: ${metrics.wildfireIndex}, Radon: ${metrics.radon}');
     final pollutants = [
       // Core pollutants (always present)
       _PollutantInfo('PM2.5', metrics.pm25, 'μg/m³', true),

@@ -1,0 +1,515 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import '../models/pollen_data.dart';
+import 'api_keys.dart';
+
+class PollenApiService {
+  static const String _baseUrl = 'https://pollen.googleapis.com/v1';
+
+  // Cache for pollen data with 6-hour validity (pollen data changes less frequently)
+  static final Map<String, PollenForecast> _pollenCache = {};
+  static final Map<String, DateTime> _cacheTimestamps = {};
+  static const Duration _cacheValidity = Duration(hours: 6);
+
+  /// Get pollen forecast for a specific location (up to 5 days)
+  static Future<PollenForecast?> getPollenForecast(
+    double latitude,
+    double longitude, {
+    int days = 5,
+    String? languageCode = 'en',
+    bool plantsDescription = true,
+  }) async {
+    final cacheKey = 'pollen_${latitude.toStringAsFixed(4)}_${longitude.toStringAsFixed(4)}_$days';
+
+    // Check cache first (6-hour validity for pollen data)
+    if (_isCacheValid(cacheKey)) {
+      debugPrint('Returning cached pollen data for $cacheKey');
+      return _pollenCache[cacheKey];
+    }
+
+    try {
+      final url = Uri.parse('$_baseUrl/forecast:lookup');
+
+      final requestBody = {
+        'location': {
+          'latitude': latitude,
+          'longitude': longitude,
+        },
+        'days': days,
+        'languageCode': languageCode,
+        'plantsDescription': plantsDescription,
+      };
+
+      debugPrint('Pollen API Request: ${jsonEncode(requestBody)}');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': ApiKeys.googleMapsApiKey,
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        debugPrint('Pollen API Response received');
+        final forecast = _parsePollenResponse(data);
+
+        if (forecast != null) {
+          // Cache the result
+          _updateCache(cacheKey, forecast);
+          debugPrint('Cached new pollen data for $cacheKey with ${forecast.dailyInfo.length} days');
+        }
+
+        return forecast;
+      } else {
+        debugPrint('Error fetching pollen data: ${response.statusCode}');
+        debugPrint('Response body: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Exception fetching pollen data: $e');
+      return null;
+    }
+  }
+
+  /// Parse the API response into our PollenForecast model
+  static PollenForecast? _parsePollenResponse(Map<String, dynamic> data) {
+    try {
+      final regionCode = data['regionCode'] as String? ?? '';
+      final dailyInfoList = data['dailyInfo'] as List<dynamic>?;
+
+      if (dailyInfoList == null || dailyInfoList.isEmpty) {
+        debugPrint('No daily pollen info in response');
+        return null;
+      }
+
+      final List<PollenDailyInfo> dailyInfo = [];
+      for (final dayData in dailyInfoList) {
+        final parsedDay = _parseDailyInfo(dayData as Map<String, dynamic>);
+        if (parsedDay != null) {
+          dailyInfo.add(parsedDay);
+        }
+      }
+
+      if (dailyInfo.isEmpty) {
+        debugPrint('No valid daily pollen info parsed');
+        return null;
+      }
+
+      return PollenForecast(
+        regionCode: regionCode,
+        dailyInfo: dailyInfo,
+      );
+    } catch (e) {
+      debugPrint('Error parsing pollen response: $e');
+      return null;
+    }
+  }
+
+  /// Parse individual day data from pollen response
+  static PollenDailyInfo? _parseDailyInfo(Map<String, dynamic> dayData) {
+    try {
+      // Parse date
+      final dateMap = dayData['date'] as Map<String, dynamic>?;
+      if (dateMap == null) {
+        debugPrint('No date found in daily info');
+        return null;
+      }
+
+      final year = dateMap['year'] as int?;
+      final month = dateMap['month'] as int?;
+      final day = dateMap['day'] as int?;
+
+      if (year == null || month == null || day == null) {
+        debugPrint('Invalid date components in daily info');
+        return null;
+      }
+
+      final date = DateTime(year, month, day);
+
+      // Parse pollen type info
+      final pollenTypeInfoList = dayData['pollenTypeInfo'] as List<dynamic>? ?? [];
+      final List<PollenTypeInfo> pollenTypeInfo = [];
+
+      for (final typeData in pollenTypeInfoList) {
+        final parsedType = _parsePollenTypeInfo(typeData as Map<String, dynamic>);
+        if (parsedType != null) {
+          pollenTypeInfo.add(parsedType);
+        }
+      }
+
+      // Parse plant info
+      final plantInfoList = dayData['plantInfo'] as List<dynamic>? ?? [];
+      final List<PlantInfo> plantInfo = [];
+
+      for (final plantData in plantInfoList) {
+        final parsedPlant = _parsePlantInfo(plantData as Map<String, dynamic>);
+        if (parsedPlant != null) {
+          plantInfo.add(parsedPlant);
+        }
+      }
+
+      return PollenDailyInfo(
+        date: date,
+        pollenTypeInfo: pollenTypeInfo,
+        plantInfo: plantInfo,
+      );
+    } catch (e) {
+      debugPrint('Error parsing daily pollen info: $e');
+      return null;
+    }
+  }
+
+  /// Parse pollen type info (grass, tree, weed)
+  static PollenTypeInfo? _parsePollenTypeInfo(Map<String, dynamic> typeData) {
+    try {
+      final codeStr = typeData['code'] as String?;
+      final displayName = typeData['displayName'] as String? ?? '';
+      final inSeason = typeData['inSeason'] as bool? ?? false;
+
+      if (codeStr == null) {
+        debugPrint('No code found in pollen type info');
+        return null;
+      }
+
+      PollenType? code;
+      switch (codeStr.toUpperCase()) {
+        case 'GRASS':
+          code = PollenType.grass;
+          break;
+        case 'TREE':
+          code = PollenType.tree;
+          break;
+        case 'WEED':
+          code = PollenType.weed;
+          break;
+        default:
+          debugPrint('Unknown pollen type code: $codeStr');
+          return null;
+      }
+
+      // Parse index info
+      final indexInfoData = typeData['indexInfo'] as Map<String, dynamic>?;
+      PollenIndexInfo? indexInfo;
+      if (indexInfoData != null) {
+        indexInfo = _parseIndexInfo(indexInfoData);
+      }
+
+      // Parse health recommendation
+      final healthRecData = typeData['healthRecommendation'] as Map<String, dynamic>?;
+      PollenHealthRecommendation? healthRecommendation;
+      if (healthRecData != null) {
+        healthRecommendation = _parseHealthRecommendation(healthRecData);
+      }
+
+      return PollenTypeInfo(
+        code: code,
+        displayName: displayName,
+        inSeason: inSeason,
+        indexInfo: indexInfo,
+        healthRecommendation: healthRecommendation,
+      );
+    } catch (e) {
+      debugPrint('Error parsing pollen type info: $e');
+      return null;
+    }
+  }
+
+  /// Parse plant info (specific plants like birch, oak, etc.)
+  static PlantInfo? _parsePlantInfo(Map<String, dynamic> plantData) {
+    try {
+      final codeStr = plantData['code'] as String?;
+      final displayName = plantData['displayName'] as String? ?? '';
+      final inSeason = plantData['inSeason'] as bool? ?? false;
+
+      if (codeStr == null) {
+        debugPrint('No code found in plant info');
+        return null;
+      }
+
+      // Map API codes to our PlantType enum
+      PlantType? code;
+      switch (codeStr.toUpperCase()) {
+        case 'ALDER':
+          code = PlantType.alder;
+          break;
+        case 'BIRCH':
+          code = PlantType.birch;
+          break;
+        case 'CYPRESS':
+          code = PlantType.cypress;
+          break;
+        case 'ELM':
+          code = PlantType.elm;
+          break;
+        case 'HAZEL':
+          code = PlantType.hazel;
+          break;
+        case 'OAK':
+          code = PlantType.oak;
+          break;
+        case 'PINE':
+          code = PlantType.pine;
+          break;
+        case 'PLANE':
+          code = PlantType.plane;
+          break;
+        case 'POPLAR':
+          code = PlantType.poplar;
+          break;
+        case 'ASH':
+          code = PlantType.ash;
+          break;
+        case 'COTTONWOOD':
+          code = PlantType.cottonwood;
+          break;
+        case 'GRAMINALES':
+          code = PlantType.graminales;
+          break;
+        case 'RAGWEED':
+          code = PlantType.ragweed;
+          break;
+        case 'MUGWORT':
+          code = PlantType.mugwort;
+          break;
+        case 'OLIVE':
+          code = PlantType.olive;
+          break;
+        case 'JUNIPER':
+          code = PlantType.juniper;
+          break;
+        case 'CHENOPOD':
+          code = PlantType.chenopod;
+          break;
+        default:
+          debugPrint('Unknown plant type code: $codeStr');
+          return null;
+      }
+
+      // Parse index info
+      final indexInfoData = plantData['indexInfo'] as Map<String, dynamic>?;
+      PollenIndexInfo? indexInfo;
+      if (indexInfoData != null) {
+        indexInfo = _parseIndexInfo(indexInfoData);
+      }
+
+      // Parse plant description
+      final descriptionData = plantData['plantDescription'] as Map<String, dynamic>?;
+      PlantDescription? plantDescription;
+      if (descriptionData != null) {
+        plantDescription = _parsePlantDescription(descriptionData);
+      }
+
+      return PlantInfo(
+        code: code,
+        displayName: displayName,
+        inSeason: inSeason,
+        indexInfo: indexInfo,
+        plantDescription: plantDescription,
+      );
+    } catch (e) {
+      debugPrint('Error parsing plant info: $e');
+      return null;
+    }
+  }
+
+  /// Parse index info (pollen index and category)
+  static PollenIndexInfo? _parseIndexInfo(Map<String, dynamic> indexData) {
+    try {
+      final value = indexData['value'] as int? ?? 0;
+      final indexDescription = indexData['indexDescription'] as String? ?? '';
+
+      // Parse category
+      final categoryStr = indexData['category'] as String?;
+      PollenIndexCategory category = PollenIndexCategory.none;
+
+      if (categoryStr != null) {
+        switch (categoryStr.toUpperCase()) {
+          case 'UPI_CATEGORY_0':
+            category = PollenIndexCategory.none;
+            break;
+          case 'UPI_CATEGORY_1':
+            category = PollenIndexCategory.veryLow;
+            break;
+          case 'UPI_CATEGORY_2':
+            category = PollenIndexCategory.low;
+            break;
+          case 'UPI_CATEGORY_3':
+            category = PollenIndexCategory.moderate;
+            break;
+          case 'UPI_CATEGORY_4':
+            category = PollenIndexCategory.high;
+            break;
+          case 'UPI_CATEGORY_5':
+            category = PollenIndexCategory.veryHigh;
+            break;
+        }
+      }
+
+      // Parse color
+      final colorData = indexData['color'] as Map<String, dynamic>?;
+      Color? color;
+      if (colorData != null) {
+        color = _parseColor(colorData);
+      }
+
+      return PollenIndexInfo(
+        value: value,
+        category: category,
+        indexDescription: indexDescription,
+        color: color,
+      );
+    } catch (e) {
+      debugPrint('Error parsing index info: $e');
+      return null;
+    }
+  }
+
+  /// Parse color information
+  static Color? _parseColor(Map<String, dynamic> colorData) {
+    try {
+      final red = (colorData['red'] as num?)?.toDouble() ?? 0.0;
+      final green = (colorData['green'] as num?)?.toDouble() ?? 0.0;
+      final blue = (colorData['blue'] as num?)?.toDouble() ?? 0.0;
+      final alpha = (colorData['alpha'] as num?)?.toDouble();
+
+      return Color(
+        red: red,
+        green: green,
+        blue: blue,
+        alpha: alpha,
+      );
+    } catch (e) {
+      debugPrint('Error parsing color: $e');
+      return null;
+    }
+  }
+
+  /// Parse health recommendation
+  static PollenHealthRecommendation? _parseHealthRecommendation(Map<String, dynamic> healthData) {
+    try {
+      final generalPopulation = healthData['generalPopulation'] as String? ?? 'No recommendations available';
+      final elderly = healthData['elderly'] as String?;
+      final lungDiseaseAtRisk = healthData['lungDiseaseAtRisk'] as String?;
+      final heartDiseaseAtRisk = healthData['heartDiseaseAtRisk'] as String?;
+      final athletes = healthData['athletes'] as String?;
+      final pregnantWomen = healthData['pregnantWomen'] as String?;
+      final children = healthData['children'] as String?;
+
+      return PollenHealthRecommendation(
+        generalPopulation: generalPopulation,
+        elderly: elderly,
+        lungDiseaseAtRisk: lungDiseaseAtRisk,
+        heartDiseaseAtRisk: heartDiseaseAtRisk,
+        athletes: athletes,
+        pregnantWomen: pregnantWomen,
+        children: children,
+      );
+    } catch (e) {
+      debugPrint('Error parsing health recommendation: $e');
+      return null;
+    }
+  }
+
+  /// Parse plant description
+  static PlantDescription? _parsePlantDescription(Map<String, dynamic> descData) {
+    try {
+      return PlantDescription(
+        type: descData['type'] as String?,
+        family: descData['family'] as String?,
+        season: descData['season'] as String?,
+        specialShapes: descData['specialShapes'] as String?,
+        specialColors: descData['specialColors'] as String?,
+        crossReaction: descData['crossReaction'] as String?,
+        picture: descData['picture'] as String?,
+        pictureCloseup: descData['pictureCloseup'] as String?,
+      );
+    } catch (e) {
+      debugPrint('Error parsing plant description: $e');
+      return null;
+    }
+  }
+
+  /// Get the heatmap tile URL for pollen visualization
+  static String getPollenHeatmapTileUrl(PollenType pollenType, int zoom, int x, int y) {
+    String typeParam;
+    switch (pollenType) {
+      case PollenType.grass:
+        typeParam = 'GRASS_UPI';
+        break;
+      case PollenType.tree:
+        typeParam = 'TREE_UPI';
+        break;
+      case PollenType.weed:
+        typeParam = 'WEED_UPI';
+        break;
+    }
+    return 'https://pollen.googleapis.com/v1/mapTypes/$typeParam/heatmapTiles/$zoom/$x/$y?key=${ApiKeys.googleMapsApiKey}';
+  }
+
+  /// Get today's pollen forecast for quick access
+  static PollenDailyInfo? getTodaysPollen(PollenForecast forecast) {
+    final today = DateTime.now();
+    try {
+      return forecast.dailyInfo.firstWhere(
+        (day) =>
+          day.date.year == today.year &&
+          day.date.month == today.month &&
+          day.date.day == today.day,
+      );
+    } catch (e) {
+      // If today's data isn't available, return the first available day
+      return forecast.dailyInfo.isNotEmpty ? forecast.dailyInfo.first : null;
+    }
+  }
+
+  // Cache management methods
+  static bool _isCacheValid(String key) {
+    if (!_pollenCache.containsKey(key) || !_cacheTimestamps.containsKey(key)) {
+      return false;
+    }
+
+    final timestamp = _cacheTimestamps[key]!;
+    final now = DateTime.now();
+
+    return now.difference(timestamp) < _cacheValidity;
+  }
+
+  static void _updateCache(String key, PollenForecast forecast) {
+    _pollenCache[key] = forecast;
+    _cacheTimestamps[key] = DateTime.now();
+
+    // Clean up old cache entries to prevent memory leaks
+    _cleanupOldCacheEntries();
+  }
+
+  static void _cleanupOldCacheEntries() {
+    final now = DateTime.now();
+    final keysToRemove = <String>[];
+
+    for (final entry in _cacheTimestamps.entries) {
+      if (now.difference(entry.value) > _cacheValidity) {
+        keysToRemove.add(entry.key);
+      }
+    }
+
+    for (final key in keysToRemove) {
+      _pollenCache.remove(key);
+      _cacheTimestamps.remove(key);
+    }
+
+    if (keysToRemove.isNotEmpty) {
+      debugPrint('Cleaned up ${keysToRemove.length} old pollen cache entries');
+    }
+  }
+
+  /// Clear all cached pollen data
+  static void clearCache() {
+    _pollenCache.clear();
+    _cacheTimestamps.clear();
+    debugPrint('Cleared all pollen cache data');
+  }
+}

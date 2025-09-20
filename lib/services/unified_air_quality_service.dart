@@ -27,7 +27,10 @@ class UnifiedAirQualityService {
           // Add personalized health recommendations if user profile exists
           final enhancedData = userProfile != null
               ? airQualityData.copyWith(
-                  healthRecommendations: generateHealthRecommendations(airQualityData, userProfile),
+                  healthRecommendations: mergeHealthRecommendations(
+                    airQualityData.healthRecommendations,
+                    generateHealthRecommendations(airQualityData, userProfile),
+                  ),
                 )
               : airQualityData;
 
@@ -42,6 +45,31 @@ class UnifiedAirQualityService {
     }
 
     return results;
+  }
+
+  static List<HealthRecommendationTag> mergeHealthRecommendations(
+    List<HealthRecommendationTag>? googleRecommendations,
+    List<HealthRecommendationTag> personalizedRecommendations,
+  ) {
+    final merged = <HealthRecommendationTag>[];
+
+    // Add Google API recommendations first (these are research-backed)
+    if (googleRecommendations != null) {
+      merged.addAll(googleRecommendations);
+    }
+
+    // Add personalized recommendations that don't conflict
+    for (final personalizedRec in personalizedRecommendations) {
+      // Check if we already have a recommendation for this population
+      final hasExisting = merged.any((existing) =>
+        existing.population == personalizedRec.population);
+
+      if (!hasExisting) {
+        merged.add(personalizedRec);
+      }
+    }
+
+    return merged;
   }
 
   static String generateStatusReason(AirQualityMetrics metrics, AirQualityStatus status) {

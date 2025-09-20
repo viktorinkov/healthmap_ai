@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/air_quality.dart';
 import 'api_keys.dart';
+import 'api_service.dart';
 
 class AirQualityApiService {
   static const String _baseUrl = 'https://airquality.googleapis.com/v1';
@@ -42,7 +43,7 @@ class AirQualityApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return _parseAirQualityResponse(data, latitude, longitude, locationName);
+        return await _parseAirQualityResponse(data, latitude, longitude, locationName);
       } else {
         debugPrint('Error fetching air quality data: ${response.statusCode}');
         debugPrint('Response body: ${response.body}');
@@ -55,12 +56,12 @@ class AirQualityApiService {
   }
 
   /// Parse the API response into our AirQualityData model
-  static AirQualityData? _parseAirQualityResponse(
+  static Future<AirQualityData?> _parseAirQualityResponse(
     Map<String, dynamic> data,
     double latitude,
     double longitude,
     String? locationName,
-  ) {
+  ) async {
     try {
       final indexes = data['indexes'] as List<dynamic>?;
       final pollutants = data['pollutants'] as List<dynamic>?;
@@ -88,7 +89,7 @@ class AirQualityApiService {
 
           if (concentration != null) {
             switch (code) {
-              case 'p25':  // Correct API code for PM2.5
+              case 'pm25':  // Correct API code for PM2.5
                 pm25 = concentration;
                 break;
               case 'pm10':
@@ -149,6 +150,55 @@ class AirQualityApiService {
         }
       }
 
+      // Fetch Radon and Wildfire data from our backend
+      double radonLevel = 0.0;
+      double wildfireIndex = 0.0;
+
+      try {
+        // Fetch radon data
+        final radonData = await ApiService.getRadonData(
+          latitude: latitude,
+          longitude: longitude,
+        );
+        debugPrint('Radon API Response: $radonData');
+        if (radonData != null && radonData['averageRadonLevel'] != null) {
+          radonLevel = (radonData['averageRadonLevel'] as num).toDouble();
+          debugPrint('Radon Level extracted: $radonLevel');
+        }
+
+        // Fetch wildfire data
+        final wildfireData = await ApiService.getWildfireData(
+          latitude: latitude,
+          longitude: longitude,
+        );
+        if (wildfireData != null) {
+          // Use actual fire data to calculate index
+          final nearbyFires = (wildfireData['nearbyFires'] as num?)?.toDouble() ?? 0.0;
+          final closestFireDistance = (wildfireData['closestFireDistance'] as num?)?.toDouble();
+
+          // Calculate wildfire index based on actual fire proximity and count
+          // Index scales from 0-100 based on fire distance and count
+          if (closestFireDistance != null) {
+            if (closestFireDistance <= 10) {
+              wildfireIndex = 90.0 + (nearbyFires.clamp(0, 10));  // 90-100 for fires within 10km
+            } else if (closestFireDistance <= 25) {
+              wildfireIndex = 60.0 + (nearbyFires.clamp(0, 20));  // 60-80 for fires within 25km
+            } else if (closestFireDistance <= 50) {
+              wildfireIndex = 30.0 + (nearbyFires.clamp(0, 20));  // 30-50 for fires within 50km
+            } else if (closestFireDistance <= 100) {
+              wildfireIndex = 10.0 + (nearbyFires.clamp(0, 10));  // 10-20 for fires within 100km
+            } else {
+              wildfireIndex = nearbyFires.clamp(0, 10);  // 0-10 for fires beyond 100km
+            }
+          } else {
+            // No fires detected
+            wildfireIndex = 0.0;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching radon/wildfire data: $e');
+      }
+
       final metrics = AirQualityMetrics(
         pm25: pm25,
         pm10: pm10,
@@ -163,8 +213,8 @@ class AirQualityApiService {
         ox: ox,
         nmhc: nmhc,
         trs: trs,
-        wildfireIndex: 0.0, // Not available in API
-        radon: 0.0, // Not available in API
+        wildfireIndex: wildfireIndex,
+        radon: radonLevel,
         universalAqi: aqiValue.toInt(),
       );
 
@@ -400,7 +450,7 @@ class AirQualityApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return _parseHistoricalAirQualityResponse(data, latitude, longitude, locationName);
+        return await _parseHistoricalAirQualityResponse(data, latitude, longitude, locationName);
       } else {
         debugPrint('Error fetching historical air quality data: ${response.statusCode}');
         debugPrint('Response body: ${response.body}');
@@ -413,12 +463,12 @@ class AirQualityApiService {
   }
 
   /// Parse the historical API response into a list of AirQualityData models
-  static List<AirQualityData>? _parseHistoricalAirQualityResponse(
+  static Future<List<AirQualityData>?> _parseHistoricalAirQualityResponse(
     Map<String, dynamic> data,
     double latitude,
     double longitude,
     String? locationName,
-  ) {
+  ) async {
     try {
       final hoursInfo = data['hoursInfo'] as List<dynamic>?;
 
@@ -429,7 +479,7 @@ class AirQualityApiService {
       final List<AirQualityData> historicalData = [];
 
       for (final hourData in hoursInfo) {
-        final hourlyData = _parseHistoricalHourData(hourData, latitude, longitude, locationName);
+        final hourlyData = await _parseHistoricalHourData(hourData, latitude, longitude, locationName);
         if (hourlyData != null) {
           historicalData.add(hourlyData);
         }
@@ -443,12 +493,12 @@ class AirQualityApiService {
   }
 
   /// Parse individual hour data from historical response
-  static AirQualityData? _parseHistoricalHourData(
+  static Future<AirQualityData?> _parseHistoricalHourData(
     Map<String, dynamic> hourData,
     double latitude,
     double longitude,
     String? locationName,
-  ) {
+  ) async {
     try {
       final dateTime = DateTime.parse(hourData['dateTime'] as String);
       final indexes = hourData['indexes'] as List<dynamic>?;
@@ -524,6 +574,55 @@ class AirQualityApiService {
 
       final aqiValue = (universalAqi['aqi'] as num?)?.toDouble() ?? 0.0;
 
+      // Fetch Radon and Wildfire data from our backend
+      double radonLevel = 0.0;
+      double wildfireIndex = 0.0;
+
+      try {
+        // Fetch radon data
+        final radonData = await ApiService.getRadonData(
+          latitude: latitude,
+          longitude: longitude,
+        );
+        debugPrint('Radon API Response: $radonData');
+        if (radonData != null && radonData['averageRadonLevel'] != null) {
+          radonLevel = (radonData['averageRadonLevel'] as num).toDouble();
+          debugPrint('Radon Level extracted: $radonLevel');
+        }
+
+        // Fetch wildfire data
+        final wildfireData = await ApiService.getWildfireData(
+          latitude: latitude,
+          longitude: longitude,
+        );
+        if (wildfireData != null) {
+          // Use actual fire data to calculate index
+          final nearbyFires = (wildfireData['nearbyFires'] as num?)?.toDouble() ?? 0.0;
+          final closestFireDistance = (wildfireData['closestFireDistance'] as num?)?.toDouble();
+
+          // Calculate wildfire index based on actual fire proximity and count
+          // Index scales from 0-100 based on fire distance and count
+          if (closestFireDistance != null) {
+            if (closestFireDistance <= 10) {
+              wildfireIndex = 90.0 + (nearbyFires.clamp(0, 10));  // 90-100 for fires within 10km
+            } else if (closestFireDistance <= 25) {
+              wildfireIndex = 60.0 + (nearbyFires.clamp(0, 20));  // 60-80 for fires within 25km
+            } else if (closestFireDistance <= 50) {
+              wildfireIndex = 30.0 + (nearbyFires.clamp(0, 20));  // 30-50 for fires within 50km
+            } else if (closestFireDistance <= 100) {
+              wildfireIndex = 10.0 + (nearbyFires.clamp(0, 10));  // 10-20 for fires within 100km
+            } else {
+              wildfireIndex = nearbyFires.clamp(0, 10);  // 0-10 for fires beyond 100km
+            }
+          } else {
+            // No fires detected
+            wildfireIndex = 0.0;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching radon/wildfire data: $e');
+      }
+
       final metrics = AirQualityMetrics(
         pm25: pm25,
         pm10: pm10,
@@ -538,8 +637,8 @@ class AirQualityApiService {
         ox: ox,
         nmhc: nmhc,
         trs: trs,
-        wildfireIndex: 0.0, // Not available in API
-        radon: 0.0, // Not available in API
+        wildfireIndex: wildfireIndex,
+        radon: radonLevel,
         universalAqi: aqiValue.toInt(),
       );
 
