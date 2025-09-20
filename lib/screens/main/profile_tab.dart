@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/user_health_profile.dart';
 import '../../models/pinned_location.dart';
 import '../../services/database_service.dart';
+import '../../widgets/sensitive_health_data_card.dart';
 import '../onboarding/onboarding_flow.dart';
 
 class ProfileTab extends StatefulWidget {
@@ -75,6 +76,8 @@ class _ProfileTabState extends State<ProfileTab> {
           _buildLifestyleFactorsCard(),
           const SizedBox(height: 16),
           _buildHomeEnvironmentCard(),
+          const SizedBox(height: 16),
+          const SensitiveHealthDataCard(),
           const SizedBox(height: 16),
           _buildPinnedLocationsCard(),
           const SizedBox(height: 16),

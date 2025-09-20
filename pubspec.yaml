@@ -67,6 +67,9 @@ dependencies:
   # Charts for data visualization
   fl_chart: ^0.66.0
 
+  # URL launcher for external links
+  url_launcher: ^6.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
