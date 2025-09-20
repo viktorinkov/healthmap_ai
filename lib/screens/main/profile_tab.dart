@@ -23,7 +23,8 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Future<void> _loadData() async {
     try {
-      _userProfile = await DatabaseService().getUserHealthProfile('user_profile');
+      _userProfile =
+          await DatabaseService().getUserHealthProfile('user_profile');
       setState(() {
         _isLoading = false;
       });
@@ -66,9 +67,9 @@ class _ProfileTabState extends State<ProfileTab> {
         children: [
           _buildProfileSummaryCard(),
           const SizedBox(height: 16),
-          _buildAgeCard(),
-          const SizedBox(height: 16),
           _buildRiskCalculationCard(),
+          const SizedBox(height: 16),
+          _buildAgeCard(),
           const SizedBox(height: 16),
           _buildHealthConditionsCard(),
           const SizedBox(height: 16),
@@ -116,11 +117,13 @@ class _ProfileTabState extends State<ProfileTab> {
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const OnboardingFlow(),
-                    ),
-                  ).then((_) => _loadData());
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder: (context) => const OnboardingFlow(),
+                        ),
+                      )
+                      .then((_) => _loadData());
                 },
                 child: const Text('Set Up Profile'),
               ),
@@ -237,7 +240,9 @@ class _ProfileTabState extends State<ProfileTab> {
               decoration: BoxDecoration(
                 color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Theme.of(context).primaryColor.withValues(alpha: 0.3)),
+                border: Border.all(
+                    color:
+                        Theme.of(context).primaryColor.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -294,8 +299,8 @@ class _ProfileTabState extends State<ProfileTab> {
             Text(
               'How we calculate your risk sensitivity:',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -303,20 +308,6 @@ class _ProfileTabState extends State<ProfileTab> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                'Final Score: ${riskMultiplier.toStringAsFixed(1)}x baseline risk',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue[700],
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -366,7 +357,8 @@ class _ProfileTabState extends State<ProfileTab> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.pregnant_woman, color: Colors.pink[700], size: 16),
+                    Icon(Icons.pregnant_woman,
+                        color: Colors.pink[700], size: 16),
                     const SizedBox(width: 4),
                     Text(
                       'Pregnant',
@@ -381,7 +373,6 @@ class _ProfileTabState extends State<ProfileTab> {
       ),
     );
   }
-
 
   Widget _buildLifestyleFactorsCard() {
     return Card(
@@ -457,7 +448,6 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-
   Widget _buildSettingsCard() {
     return Card(
       child: Padding(
@@ -467,8 +457,6 @@ class _ProfileTabState extends State<ProfileTab> {
           children: [
             Row(
               children: [
-                const Icon(Icons.settings, color: Colors.grey),
-                const SizedBox(width: 8),
                 Text(
                   'Settings',
                   style: Theme.of(context).textTheme.titleMedium,
@@ -495,7 +483,8 @@ class _ProfileTabState extends State<ProfileTab> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Clear All Data', style: TextStyle(color: Colors.red)),
+              title: const Text('Clear All Data',
+                  style: TextStyle(color: Colors.red)),
               trailing: const Icon(Icons.chevron_right),
               onTap: _showClearDataDialog,
             ),
@@ -506,11 +495,13 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   void _editProfile() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const OnboardingFlow(),
-      ),
-    ).then((_) => _loadData());
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (context) => const OnboardingFlow(),
+          ),
+        )
+        .then((_) => _loadData());
   }
 
   void _showAboutDialog() {
@@ -522,7 +513,8 @@ class _ProfileTabState extends State<ProfileTab> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('HealthMap AI helps you monitor air quality and make informed decisions about your health.'),
+            Text(
+                'HealthMap AI helps you monitor air quality and make informed decisions about your health.'),
             SizedBox(height: 12),
             Text('Features:'),
             Text('• Personalized air quality recommendations'),
@@ -579,31 +571,44 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Color _getRiskColor(String level) {
     switch (level) {
-      case 'low': return Colors.green;
-      case 'moderate': return Colors.orange;
-      case 'high': return Colors.red;
-      case 'very high': return Colors.purple;
-      default: return Colors.grey;
+      case 'low':
+        return Colors.green;
+      case 'moderate':
+        return Colors.orange;
+      case 'high':
+        return Colors.red;
+      case 'very high':
+        return Colors.purple;
+      default:
+        return Colors.grey;
     }
   }
 
-
   String _getLifestyleRiskName(LifestyleRisk risk) {
     switch (risk) {
-      case LifestyleRisk.outdoorWorker: return 'Outdoor Work';
-      case LifestyleRisk.athlete: return 'Athlete';
-      case LifestyleRisk.smoker: return 'Smoker';
-      case LifestyleRisk.frequentCommuter: return 'Commuter';
+      case LifestyleRisk.outdoorWorker:
+        return 'Outdoor Work';
+      case LifestyleRisk.athlete:
+        return 'Athlete';
+      case LifestyleRisk.smoker:
+        return 'Smoker';
+      case LifestyleRisk.frequentCommuter:
+        return 'Commuter';
     }
   }
 
   String _getDomesticRiskName(DomesticRisk risk) {
     switch (risk) {
-      case DomesticRisk.oldBuilding: return 'Old Building';
-      case DomesticRisk.poorVentilation: return 'Poor Ventilation';
-      case DomesticRisk.basementDwelling: return 'Basement Living';
-      case DomesticRisk.industrialArea: return 'Industrial Area';
-      case DomesticRisk.highTrafficArea: return 'High Traffic';
+      case DomesticRisk.oldBuilding:
+        return 'Old Building';
+      case DomesticRisk.poorVentilation:
+        return 'Poor Ventilation';
+      case DomesticRisk.basementDwelling:
+        return 'Basement Living';
+      case DomesticRisk.industrialArea:
+        return 'Industrial Area';
+      case DomesticRisk.highTrafficArea:
+        return 'High Traffic';
     }
   }
 

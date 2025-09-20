@@ -170,8 +170,10 @@ class AirQualityApiService {
           longitude: longitude,
         );
         debugPrint('Radon API Response: $radonData');
-        if (radonData['averageRadonLevel'] != null) {
-          final radonValue = radonData['averageRadonLevel'];
+        // Check for radon data in the correct location: epaRadonZone.averageLevel
+        final epaRadonZone = radonData['epaRadonZone'];
+        if (epaRadonZone != null && epaRadonZone['averageLevel'] != null) {
+          final radonValue = epaRadonZone['averageLevel'];
           if (radonValue is num) {
             radonLevel = radonValue.toDouble();
             debugPrint('Radon Level extracted: $radonLevel');
@@ -187,20 +189,26 @@ class AirQualityApiService {
             debugPrint('Radon data not available or is N/A: $radonValue');
             radonLevel = 0.0;
           }
+        } else {
+          debugPrint('EPA Radon Zone data not found in response');
+          radonLevel = 0.0;
         }
         
-        // Extract detailed radon information
-        if (radonData['radonRisk'] != null && radonData['radonRisk'] != 'N/A') {
-          radonRiskLevel = radonData['radonRisk'];
-        }
-        if (radonData['radonZone'] != null && radonData['radonZone'] != 'N/A') {
-          radonEpaZone = radonData['radonZone'] is int ? radonData['radonZone'] : null;
-        }
-        if (radonData['description'] != null && radonData['description'] != 'N/A') {
-          radonZoneDescription = radonData['description'];
-        }
-        if (radonData['recommendation'] != null && radonData['recommendation'] != 'N/A') {
-          radonRecommendation = radonData['recommendation'];
+        // Extract detailed radon information from epaRadonZone
+        if (epaRadonZone != null) {
+          if (epaRadonZone['level'] != null && epaRadonZone['level'] != 'N/A') {
+            radonRiskLevel = epaRadonZone['level'];
+          }
+          if (epaRadonZone['zone'] != null && epaRadonZone['zone'] != 'N/A') {
+            radonEpaZone = epaRadonZone['zone'] is int ? epaRadonZone['zone'] : null;
+          }
+          if (epaRadonZone['description'] != null && epaRadonZone['description'] != 'N/A') {
+            radonZoneDescription = epaRadonZone['description'];
+          }
+          final recommendation = epaRadonZone['recommendation'];
+          if (recommendation != null && recommendation is Map) {
+            radonRecommendation = recommendation['action'] ?? 'No recommendation available';
+          }
         }
 
         // Fetch wildfire data
@@ -208,6 +216,8 @@ class AirQualityApiService {
           latitude: latitude,
           longitude: longitude,
         );
+        debugPrint('Wildfire API Response: $wildfireData');
+
         // Use actual fire data to calculate index
         final nearbyFires = (wildfireData['nearbyFires'] as num?)?.toDouble() ?? 0.0;
         final closestFireDistance = (wildfireData['closestFireDistance'] as num?)?.toDouble();
@@ -215,6 +225,17 @@ class AirQualityApiService {
         // Store wildfire details
         wildfireNearbyFires = nearbyFires.toInt();
         wildfireClosestDistance = closestFireDistance;
+
+        // Extract additional wildfire information
+        if (wildfireData['riskLevel'] != null && wildfireData['riskLevel'] != 'N/A') {
+          wildfireRiskLevel = wildfireData['riskLevel'];
+        }
+        if (wildfireData['smokeImpact'] != null && wildfireData['smokeImpact'] != 'N/A') {
+          wildfireSmokeImpact = wildfireData['smokeImpact'];
+        }
+        if (wildfireData['airQualityImpact'] != null && wildfireData['airQualityImpact'] != 'N/A') {
+          wildfireAirQualityImpact = wildfireData['airQualityImpact'];
+        }
 
         // Calculate wildfire index based on actual fire proximity and count
         // Index scales from 0-100 based on fire distance and count
@@ -651,8 +672,10 @@ class AirQualityApiService {
           longitude: longitude,
         );
         debugPrint('Radon API Response: $radonData');
-        if (radonData['averageRadonLevel'] != null) {
-          final radonValue = radonData['averageRadonLevel'];
+        // Check for radon data in the correct location: epaRadonZone.averageLevel
+        final epaRadonZone = radonData['epaRadonZone'];
+        if (epaRadonZone != null && epaRadonZone['averageLevel'] != null) {
+          final radonValue = epaRadonZone['averageLevel'];
           if (radonValue is num) {
             radonLevel = radonValue.toDouble();
             debugPrint('Radon Level extracted: $radonLevel');
@@ -668,6 +691,9 @@ class AirQualityApiService {
             debugPrint('Radon data not available or is N/A: $radonValue');
             radonLevel = 0.0;
           }
+        } else {
+          debugPrint('EPA Radon Zone data not found in response');
+          radonLevel = 0.0;
         }
 
         // Fetch wildfire data
@@ -675,6 +701,8 @@ class AirQualityApiService {
           latitude: latitude,
           longitude: longitude,
         );
+        debugPrint('Wildfire API Response (historical): $wildfireData');
+
         // Use actual fire data to calculate index
         final nearbyFires = (wildfireData['nearbyFires'] as num?)?.toDouble() ?? 0.0;
         final closestFireDistance = (wildfireData['closestFireDistance'] as num?)?.toDouble();
