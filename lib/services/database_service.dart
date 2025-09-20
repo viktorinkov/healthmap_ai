@@ -24,8 +24,9 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'healthmap.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -89,6 +90,30 @@ class DatabaseService {
         ranking INTEGER
       )
     ''');
+
+    // Daily Tasks table
+    await db.execute('''
+      CREATE TABLE daily_tasks(
+        id TEXT PRIMARY KEY,
+        date_key TEXT,
+        tasks_json TEXT,
+        created_at TEXT
+      )
+    ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add daily tasks table in version 2
+      await db.execute('''
+        CREATE TABLE daily_tasks(
+          id TEXT PRIMARY KEY,
+          date_key TEXT,
+          tasks_json TEXT,
+          created_at TEXT
+        )
+      ''');
+    }
   }
 
   // User Health Profile operations
@@ -283,11 +308,47 @@ class DatabaseService {
     )).toList();
   }
 
+  // Daily Tasks operations
+  Future<void> saveDailyTasks(String dateKey, List<dynamic> tasks) async {
+    final db = await database;
+    await db.insert(
+      'daily_tasks',
+      {
+        'id': dateKey,
+        'date_key': dateKey,
+        'tasks_json': jsonEncode(tasks.map((task) => task.toJson()).toList()),
+        'created_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<dynamic>> getDailyTasks(String dateKey) async {
+    final db = await database;
+    final maps = await db.query(
+      'daily_tasks',
+      where: 'date_key = ?',
+      whereArgs: [dateKey],
+    );
+
+    if (maps.isNotEmpty) {
+      final tasksJson = maps.first['tasks_json'] as String;
+      final tasksList = jsonDecode(tasksJson) as List;
+      // Import the DailyTask class dynamically to avoid circular dependency
+      return tasksList.map((taskJson) {
+        // Return a map instead of DailyTask to avoid import issues
+        return taskJson;
+      }).toList();
+    }
+    return [];
+  }
+
   Future<void> clearAllData() async {
     final db = await database;
     await db.delete('user_health_profiles');
     await db.delete('pinned_locations');
     await db.delete('air_quality_data');
     await db.delete('neighborhoods');
+    await db.delete('daily_tasks');
   }
 }

@@ -150,5 +150,96 @@ Provide a 1-2 sentence explanation of what this means for residents in simple te
     }
   }
 
+  static Future<List<dynamic>> generateDailyTasks({
+    required UserHealthProfile userProfile,
+    required DateTime date,
+  }) async {
+    try {
+      final prompt = _buildDailyTasksPrompt(userProfile: userProfile, date: date);
+
+      if (model == null) {
+        return [];
+      }
+      final response = await model!.generateContent([Content.text(prompt)]);
+
+      if (response.text != null) {
+        return _parseDailyTasks(response.text!, date);
+      } else {
+        return [];
+      }
+    } catch (e) {
+      print('Error generating Gemini daily tasks: $e');
+      return [];
+    }
+  }
+
+  static String _buildDailyTasksPrompt({
+    required UserHealthProfile userProfile,
+    required DateTime date,
+  }) {
+    final dayOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][date.weekday - 1];
+
+    final prompt = '''
+You are a health AI assistant. Generate 3-5 personalized daily tasks for a person based on their health profile for $dayOfWeek.
+
+HEALTH PROFILE:
+- Age Group: ${userProfile.ageGroup.displayName}
+- Pregnancy Status: ${userProfile.isPregnant ? 'Pregnant' : 'Not pregnant'}
+- Sensitivity Level: ${userProfile.sensitivityLevel}/5
+- Health Conditions: ${userProfile.conditions.map((c) => c.displayName).join(', ')}
+- Lifestyle Factors: ${userProfile.lifestyleRisks.map((r) => r.name).join(', ')}
+- Home Environment: ${userProfile.domesticRisks.map((r) => r.name).join(', ')}
+
+CATEGORIES: health, fitness, wellness, safety, planning
+
+INSTRUCTIONS:
+1. Generate 3-5 specific, actionable daily tasks
+2. Consider their health conditions and risk factors
+3. Include air quality-related tasks when relevant
+4. Format as: TITLE|DESCRIPTION|CATEGORY
+5. Make tasks realistic and achievable in one day
+6. Focus on health and wellness actions
+
+Generate personalized daily tasks:
+''';
+
+    return prompt;
+  }
+
+  static List<dynamic> _parseDailyTasks(String response, DateTime date) {
+    final tasks = <Map<String, dynamic>>[];
+    final lines = response.split('\n')
+        .where((line) => line.trim().isNotEmpty && line.contains('|'))
+        .take(5)
+        .toList();
+
+    for (int i = 0; i < lines.length; i++) {
+      final parts = lines[i].split('|');
+      if (parts.length >= 3) {
+        final title = parts[0].trim().replaceAll(RegExp(r'^[\d\.\-\*\•]+\s*'), '');
+        final description = parts[1].trim();
+        final categoryStr = parts[2].trim().toLowerCase();
+
+        // Map category string to enum
+        String category = 'wellness';
+        if (categoryStr.contains('health')) category = 'health';
+        else if (categoryStr.contains('fitness')) category = 'fitness';
+        else if (categoryStr.contains('safety')) category = 'safety';
+        else if (categoryStr.contains('planning')) category = 'planning';
+
+        tasks.add({
+          'id': 'ai_task_${date.millisecondsSinceEpoch}_$i',
+          'title': title,
+          'description': description,
+          'category': category,
+          'isCompleted': false,
+          'createdAt': date.toIso8601String(),
+        });
+      }
+    }
+
+    return tasks;
+  }
+
   static bool get isConfigured => ApiKeys.hasGeminiKey;
 }

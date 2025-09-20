@@ -16,6 +16,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
   UserHealthProfile? _userProfile;
   List<PinnedLocation> _pinnedLocations = [];
   Map<String, AirQualityData> _locationAirQuality = {};
+  AirQualityData? _currentLocationAirQuality;
   List<String> _personalizedRecommendations = [];
   bool _isLoading = true;
   bool _isGeneratingRecommendations = false;
@@ -36,6 +37,9 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
 
       // Load air quality data for each pinned location
       await _loadAirQualityForLocations();
+
+      // Load current location air quality data
+      await _loadCurrentLocationAirQuality();
 
       // Generate personalized recommendations
       await _generatePersonalizedRecommendations();
@@ -73,6 +77,55 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
         await DatabaseService().saveAirQualityData(_locationAirQuality[location.id]!);
       }
     }
+  }
+
+  Future<void> _loadCurrentLocationAirQuality() async {
+    // Generate sample current location air quality data
+    // In a real app, this would use GPS and real API data
+    _currentLocationAirQuality = _generateCurrentLocationAirQualityData();
+  }
+
+  AirQualityData _generateCurrentLocationAirQualityData() {
+    // Generate realistic current location air quality data
+    final random = DateTime.now().millisecond;
+    final baseVariation = (random % 100) / 100.0;
+
+    // Base values for current location (Houston-like values)
+    final baseValues = {'pm25': 12.0, 'pm10': 25.0, 'o3': 42.0, 'no2': 24.0};
+
+    final pm25 = (baseValues['pm25']! * (1 + (baseVariation - 0.5) * 0.4)).clamp(5.0, 35.0);
+    final pm10 = (baseValues['pm10']! * (1 + (baseVariation - 0.5) * 0.4)).clamp(10.0, 60.0);
+    final o3 = (baseValues['o3']! * (1 + (baseVariation - 0.5) * 0.3)).clamp(20.0, 80.0);
+    final no2 = (baseValues['no2']! * (1 + (baseVariation - 0.5) * 0.4)).clamp(10.0, 50.0);
+
+    // Optional pollutants
+    final co = random % 3 == 0 ? (200 + (baseVariation * 300)).clamp(100.0, 800.0) : null;
+    final so2 = random % 4 == 0 ? (5 + (baseVariation * 15)).clamp(2.0, 25.0) : null;
+
+    final metrics = AirQualityMetrics(
+      pm25: pm25,
+      pm10: pm10,
+      o3: o3,
+      no2: no2,
+      co: co,
+      so2: so2,
+      wildfireIndex: (baseVariation * 30).clamp(0.0, 40.0),
+      radon: (1.5 + baseVariation * 2).clamp(1.0, 4.0),
+      universalAqi: null,
+    );
+
+    final status = AirQualityStatusExtension.fromScore(metrics.overallScore);
+
+    return AirQualityData(
+      id: 'current_location_${DateTime.now().millisecondsSinceEpoch}',
+      locationName: 'Current Location',
+      latitude: 29.7604, // Houston coordinates as default
+      longitude: -95.3698,
+      timestamp: DateTime.now().subtract(Duration(minutes: random % 30)),
+      metrics: metrics,
+      status: status,
+      statusReason: _generateStatusReason(metrics, status),
+    );
   }
 
   AirQualityData _generateSampleAirQualityData(PinnedLocation location) {
@@ -174,13 +227,8 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     });
 
     try {
-      if (_pinnedLocations.isEmpty) {
-        // Generate recommendations based on current location
-        _personalizedRecommendations = _generateCurrentLocationRecommendations();
-      } else {
-        // Generate recommendations based on pinned locations
-        _personalizedRecommendations = _generatePinnedLocationRecommendations();
-      }
+      // Generate recommendations based on pinned locations
+      _personalizedRecommendations = _generatePinnedLocationRecommendations();
 
       // Try to enhance with Gemini AI if available
       if (GeminiService.isConfigured && _locationAirQuality.isNotEmpty) {
@@ -205,17 +253,16 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     });
   }
 
-  List<String> _generateCurrentLocationRecommendations() {
-    return [
-      '📍 No pinned locations found.',
-      '📌 Add locations you frequently visit to get personalized air quality summaries.',
-      '🏠 Pin your home, work, gym, or other important places to track their air quality.',
-      '💡 Tap the + button on the map to add your first location.',
-    ];
-  }
 
   List<String> _generatePinnedLocationRecommendations() {
     final recommendations = <String>[];
+
+    if (_pinnedLocations.isEmpty) {
+      recommendations.add('📌 Add locations you visit frequently to get personalized air quality insights.');
+      recommendations.add('🏠 Pin your home, work, gym, or other important places.');
+      recommendations.add('💡 Use the map tab to add your first pinned location.');
+      return recommendations;
+    }
 
     if (_locationAirQuality.isEmpty) {
       recommendations.add('📊 Loading air quality data for your pinned locations...');
@@ -347,9 +394,99 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            if (_pinnedLocations.isNotEmpty) ..._buildPinnedLocationsSummary(),
+            _buildHereAndNowRiskCard(),
             const SizedBox(height: 16),
+            if (_pinnedLocations.isNotEmpty) ..._buildPinnedLocationsSummary(),
+            if (_pinnedLocations.isNotEmpty) const SizedBox(height: 16),
             _buildPersonalizedRecommendationsSection(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHereAndNowRiskCard() {
+    if (_currentLocationAirQuality == null) {
+      return Card(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Here & Now Risk',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.location_on,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Here & Now Risk',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Current location air quality',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildStatusBadge(_currentLocationAirQuality!.status),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildUniversalAqi(_currentLocationAirQuality!),
+            const SizedBox(height: 12),
+            _buildPollutantGrid(_currentLocationAirQuality!.metrics),
+            const SizedBox(height: 12),
+            _buildHealthRecommendationTags(_currentLocationAirQuality!),
           ],
         ),
       ),
