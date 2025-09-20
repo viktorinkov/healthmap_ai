@@ -337,6 +337,9 @@ class _DailyTasksTabState extends State<DailyTasksTab> {
             LinearProgressIndicator(
               value: progress,
               backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).colorScheme.primary,
+              ),
               borderRadius: BorderRadius.circular(4),
             ),
           ],
@@ -397,6 +400,8 @@ class _DailyTasksTabState extends State<DailyTasksTab> {
         leading: Checkbox(
           value: task.isCompleted,
           onChanged: (_) => _toggleTaskCompletion(task),
+          activeColor: Theme.of(context).colorScheme.primary,
+          checkColor: Theme.of(context).colorScheme.onPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(4),
           ),

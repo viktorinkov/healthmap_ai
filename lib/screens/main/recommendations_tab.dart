@@ -591,8 +591,8 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
       ),
       child: Text(
         status.displayName.toUpperCase(),
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onPrimary,
           fontWeight: FontWeight.bold,
           fontSize: 12,
         ),
@@ -787,11 +787,19 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
           children: [
             Row(
               children: [
-                const Icon(Icons.lightbulb, color: Colors.orange),
+                Icon(
+                  Icons.lightbulb,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
-                Text(
-                  'Personalized Recommendations',
-                  style: Theme.of(context).textTheme.titleLarge,
+                Flexible(
+                  child: Text(
+                    'Personalized\nRecommendations',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      height: 1.2,
+                    ),
+                  ),
                 ),
               ],
             ),
