@@ -6,6 +6,7 @@ import '../services/environmental_measurements_service.dart';
 import '../screens/charts/location_charts_screen.dart';
 import 'environmental_measurements_card.dart';
 import 'pin_info_dialog.dart';
+import 'air_quality_forecast_section.dart';
 
 class UnifiedLocationCard extends StatefulWidget {
   final PinnedLocation? location;
@@ -13,6 +14,7 @@ class UnifiedLocationCard extends StatefulWidget {
   final bool isCurrentLocation;
   final bool showFullDetails;
   final VoidCallback? onRefresh;
+  final String? customTitle;
 
   const UnifiedLocationCard({
     Key? key,
@@ -21,6 +23,7 @@ class UnifiedLocationCard extends StatefulWidget {
     this.isCurrentLocation = false,
     this.showFullDetails = false,
     this.onRefresh,
+    this.customTitle,
   }) : super(key: key);
 
   @override
@@ -92,6 +95,8 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
                 _buildPollutantGrid(),
                 const SizedBox(height: 12),
                 _buildHealthRecommendationTags(),
+                const SizedBox(height: 16),
+                _buildForecastSection(),
                 const SizedBox(height: 12),
                 _buildActionButtons(),
               ] else ...[
@@ -116,9 +121,10 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
   }
 
   Widget _buildHeader() {
-    final locationName = widget.isCurrentLocation
-      ? 'Current Location'
-      : widget.location?.name ?? 'Unknown Location';
+    final locationName = widget.customTitle ??
+      (widget.isCurrentLocation
+        ? 'Current Location'
+        : widget.location?.name ?? 'Unknown Location');
 
     final locationSubtitle = widget.isCurrentLocation
       ? 'Real-time air quality data'
@@ -170,7 +176,7 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
             ],
           ),
         ),
-        if (widget.airQuality != null) _buildStatusBadge(widget.airQuality!.status),
+        if (widget.airQuality != null) _buildStatusBadge(_getStatusFromUniversalAqi()),
       ],
     );
   }
@@ -465,6 +471,40 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
         ),
       );
     }
+  }
+
+  AirQualityStatus _getStatusFromUniversalAqi() {
+    final aqi = widget.airQuality!.metrics.universalAqi ??
+                 (100 - widget.airQuality!.metrics.overallScore).round();
+
+    return AirQualityStatusExtension.fromScore(aqi.toDouble());
+  }
+
+  Widget _buildForecastSection() {
+    // Get location coordinates for the forecast
+    double? latitude;
+    double? longitude;
+    String? locationName;
+
+    if (widget.location != null) {
+      latitude = widget.location!.latitude;
+      longitude = widget.location!.longitude;
+      locationName = widget.location!.name;
+    } else if (widget.isCurrentLocation && widget.airQuality != null) {
+      latitude = widget.airQuality!.latitude;
+      longitude = widget.airQuality!.longitude;
+      locationName = 'Current Location';
+    }
+
+    if (latitude == null || longitude == null) {
+      return const SizedBox.shrink();
+    }
+
+    return AirQualityForecastSection(
+      latitude: latitude,
+      longitude: longitude,
+      locationName: locationName,
+    );
   }
 
   void _showDetailedInfo() {

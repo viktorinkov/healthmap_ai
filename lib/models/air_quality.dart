@@ -136,7 +136,7 @@ extension AirQualityStatusExtension on AirQualityStatus {
 
   static AirQualityStatus fromScore(double score) {
     if (score <= 50) return AirQualityStatus.good;
-    if (score <= 75) return AirQualityStatus.caution;
+    if (score <= 100) return AirQualityStatus.caution;
     return AirQualityStatus.avoid;
   }
 }

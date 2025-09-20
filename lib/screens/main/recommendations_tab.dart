@@ -184,6 +184,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     return merged;
   }
 
+
   Future<void> _generatePersonalizedRecommendations() async {
     if (_userProfile == null) return;
 
@@ -484,6 +485,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     return UnifiedLocationCard(
       airQuality: _currentLocationAirQuality,
       isCurrentLocation: true,
+      customTitle: 'Here & Now Risk',
       onRefresh: _loadData,
     );
   }
