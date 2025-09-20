@@ -606,6 +606,21 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     bool isCurrentLocation = false,
     String? customTitle,
   }) {
+    // Always use enhanced card with Gemini assessment for consistency
+    return _buildEnhancedLocationCard(
+      airQuality: airQuality,
+      location: location,
+      isCurrentLocation: isCurrentLocation,
+      customTitle: customTitle,
+    );
+  }
+
+  Widget _buildEnhancedLocationCard({
+    required AirQualityData? airQuality,
+    PinnedLocation? location,
+    bool isCurrentLocation = false,
+    String? customTitle,
+  }) {
     if (airQuality == null) {
       return UnifiedLocationCard(
         location: location,
@@ -644,12 +659,14 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
 
         String? geminiAssessment;
         if (snapshot.hasData && snapshot.data != null) {
-          geminiAssessment = snapshot.data!['justification'] as String;
+          final justification = snapshot.data!['justification'] as String;
+          if (justification.isNotEmpty) {
+            geminiAssessment = justification;
+          }
         } else if (snapshot.connectionState == ConnectionState.waiting) {
           geminiAssessment = 'Analyzing air quality data...';
-        } else {
-          geminiAssessment = 'No assessment available';
         }
+        // Don't show fallback message - just show no assessment if none available
 
         return UnifiedLocationCard(
           location: location,

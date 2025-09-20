@@ -52,8 +52,10 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
               _buildHeader(),
               if (widget.airQuality != null) ...[
                 const SizedBox(height: 16),
-                _buildUniversalAqi(),
-                const SizedBox(height: 12),
+                if (widget.geminiAssessment != null && widget.geminiAssessment!.isNotEmpty) ...[
+                  _buildGeminiAssessment(),
+                  const SizedBox(height: 12),
+                ],
                 _buildPollutantGrid(),
                 const SizedBox(height: 12),
                 _buildHealthRecommendationTags(),
@@ -162,47 +164,7 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
     );
   }
 
-  Widget _buildUniversalAqi() {
-    // If Gemini assessment is provided, show that instead
-    if (widget.geminiAssessment != null && widget.geminiAssessment!.isNotEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: widget.isCurrentLocation
-            ? Theme.of(context).colorScheme.surface.withValues(alpha: 0.7)
-            : Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.psychology,
-              size: 20,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                widget.geminiAssessment!,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: widget.isCurrentLocation
-                    ? Theme.of(context).colorScheme.onSecondaryContainer
-                    : Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Only show Universal AQI if available from API
-    final aqi = widget.airQuality!.metrics.universalAqi;
-    if (aqi == null) {
-      return const SizedBox.shrink(); // Don't show anything if no real AQI data
-    }
-
+  Widget _buildGeminiAssessment() {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -214,24 +176,20 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
       child: Row(
         children: [
           Icon(
-            Icons.air,
+            Icons.psychology,
             size: 20,
-            color: Theme.of(context).colorScheme.secondary,
+            color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 8),
-          Text(
-            'Universal AQI: ',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: widget.isCurrentLocation
-                ? Theme.of(context).colorScheme.onSecondaryContainer
-                : Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-          Text(
-            aqi.toString(),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.secondary,
+          Expanded(
+            child: Text(
+              widget.geminiAssessment!,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: widget.isCurrentLocation
+                  ? Theme.of(context).colorScheme.onSecondaryContainer
+                  : Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],

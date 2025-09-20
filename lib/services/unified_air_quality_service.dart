@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import '../models/pinned_location.dart';
 import '../models/air_quality.dart';
 import '../models/user_health_profile.dart';
 import 'database_service.dart';
+import 'air_quality_api_service.dart';
 
 class UnifiedAirQualityService {
   static Map<String, AirQualityData> locationAirQuality = {};
@@ -10,31 +12,36 @@ class UnifiedAirQualityService {
     List<PinnedLocation> locations, {
     UserHealthProfile? userProfile,
   }) async {
-    for (final location in locations) {
-      // Check if we have existing data for this location
-      final existingData = await DatabaseService().getAirQualityData();
-      final locationSpecificData = existingData.where((data) =>
-        data.locationName.toLowerCase().contains(location.name.toLowerCase()) ||
-        (data.latitude - location.latitude).abs() < 0.01 &&
-        (data.longitude - location.longitude).abs() < 0.01
-      ).toList();
+    final Map<String, AirQualityData> results = {};
 
-      if (locationSpecificData.isNotEmpty) {
-        // Update existing data with health recommendations if user profile is available
-        final airQualityData = locationSpecificData.first;
-        locationAirQuality[location.id] = userProfile != null
-          ? airQualityData.copyWith(
-              healthRecommendations: generateHealthRecommendations(airQualityData, userProfile),
-            )
-          : airQualityData;
-      } else {
-        // No air quality data available - don't generate fake data
-        // Frontend should show "No data available" message
-        continue;
+    for (final location in locations) {
+      try {
+        // Fetch fresh air quality data from Google API
+        final airQualityData = await AirQualityApiService.getAirQuality(
+          location.latitude,
+          location.longitude,
+          locationName: location.name,
+        );
+
+        if (airQualityData != null) {
+          // Add personalized health recommendations if user profile exists
+          final enhancedData = userProfile != null
+              ? airQualityData.copyWith(
+                  healthRecommendations: generateHealthRecommendations(airQualityData, userProfile),
+                )
+              : airQualityData;
+
+          results[location.id] = enhancedData;
+          locationAirQuality[location.id] = enhancedData;
+        }
+        // If airQualityData is null, don't add to results - let UI show "No data available"
+      } catch (e) {
+        debugPrint('Error fetching air quality for ${location.name}: $e');
+        // Continue to next location without adding fake data
       }
     }
 
-    return locationAirQuality;
+    return results;
   }
 
   static String generateStatusReason(AirQualityMetrics metrics, AirQualityStatus status) {
