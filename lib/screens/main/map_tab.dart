@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
@@ -296,10 +297,22 @@ class _MapTabState extends State<MapTab> {
 }
 
 /// Custom tile provider for Google Air Quality API heatmap
+/// Bounds the heatmap to the Houston metropolitan area
 class AirQualityTileProvider extends TileProvider {
+  // Houston metropolitan area bounds
+  static const double _houstonNorthBound = 30.1;    // North Harris County
+  static const double _houstonSouthBound = 29.4;    // South of Sugar Land
+  static const double _houstonWestBound = -95.8;    // West of Katy
+  static const double _houstonEastBound = -94.9;    // East of Baytown
+
   @override
   Future<Tile> getTile(int x, int y, int? zoom) async {
     if (zoom == null) return const Tile(256, 256, null);
+
+    // Check if this tile intersects with Houston area
+    if (!_tileIntersectsHouston(x, y, zoom)) {
+      return const Tile(256, 256, null); // Return empty tile outside Houston
+    }
 
     try {
       final tileUrl = AirQualityApiService.getHeatmapTileUrl(zoom, x, y);
@@ -315,5 +328,51 @@ class AirQualityTileProvider extends TileProvider {
       debugPrint('Error loading air quality tile: $e');
       return const Tile(256, 256, null);
     }
+  }
+
+  /// Check if a tile intersects with the Houston metropolitan area
+  bool _tileIntersectsHouston(int x, int y, int zoom) {
+    // Convert tile coordinates to lat/lng bounds
+    final tileBounds = _getTileBounds(x, y, zoom);
+
+    // Check if tile overlaps with Houston bounds
+    return tileBounds['north']! >= _houstonSouthBound &&
+           tileBounds['south']! <= _houstonNorthBound &&
+           tileBounds['east']! >= _houstonWestBound &&
+           tileBounds['west']! <= _houstonEastBound;
+  }
+
+  /// Convert tile coordinates to lat/lng bounds
+  Map<String, double> _getTileBounds(int x, int y, int zoom) {
+    // Calculate bounds
+    final north = _tile2lat(y, zoom);
+    final south = _tile2lat(y + 1, zoom);
+    final west = _tile2lng(x, zoom);
+    final east = _tile2lng(x + 1, zoom);
+
+    return {
+      'north': north,
+      'south': south,
+      'west': west,
+      'east': east,
+    };
+  }
+
+  /// Convert tile Y coordinate to latitude
+  double _tile2lat(int y, int zoom) {
+    final n = 1 << zoom;
+    final latRad = math.atan(_sinh(math.pi * (1 - 2 * y / n)));
+    return latRad * 180.0 / math.pi;
+  }
+
+  /// Helper function for hyperbolic sine (sinh)
+  double _sinh(double x) {
+    return (math.exp(x) - math.exp(-x)) / 2;
+  }
+
+  /// Convert tile X coordinate to longitude
+  double _tile2lng(int x, int zoom) {
+    final n = 1 << zoom;
+    return x / n * 360.0 - 180.0;
   }
 }
