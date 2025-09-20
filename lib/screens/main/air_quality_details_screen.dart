@@ -25,8 +25,6 @@ class AirQualityDetailsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLocationHeader(context),
-            const SizedBox(height: 24),
             _buildMetricCategory(
               context,
               'Core Pollutants',
@@ -267,55 +265,6 @@ class AirQualityDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildLocationHeader(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(
-              Icons.location_on,
-              color: Theme.of(context).colorScheme.primary,
-              size: 32,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    locationName,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(airQuality.status),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      airQuality.status.displayName.toUpperCase(),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildMetricCategory(
     BuildContext context,
