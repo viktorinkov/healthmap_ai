@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/onboarding/onboarding_flow.dart';
 import 'screens/main/home_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'services/database_service.dart';
 import 'services/api_service.dart';
 
@@ -110,11 +111,8 @@ class _AppInitializerState extends State<AppInitializer> {
       return const SplashScreen();
     }
 
-    if (_hasCompletedOnboarding) {
-      return const HomeScreen();
-    } else {
-      return const OnboardingFlow();
-    }
+    // Show login screen as the first screen
+    return const LoginScreen();
   }
 }
 
