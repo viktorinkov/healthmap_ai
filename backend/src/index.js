@@ -72,8 +72,8 @@ async function startServer() {
     startScheduledTasks();
     console.log('✅ Scheduled tasks started');
 
-    app.listen(PORT, () => {
-      console.log(`🚀 HealthMap AI Backend running on http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 HealthMap AI Backend running on http://0.0.0.0:${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV}`);
     });
   } catch (error) {
