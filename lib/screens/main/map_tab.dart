@@ -1,0 +1,549 @@
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:location/location.dart';
+import '../../models/air_quality.dart';
+import '../../models/neighborhood.dart';
+import '../../models/pinned_location.dart';
+import '../../services/fake_data_service.dart';
+import '../../services/database_service.dart';
+
+class MapTab extends StatefulWidget {
+  const MapTab({Key? key}) : super(key: key);
+
+  @override
+  State<MapTab> createState() => _MapTabState();
+}
+
+class _MapTabState extends State<MapTab> {
+  GoogleMapController? _mapController;
+  Location _location = Location();
+  LatLng _currentLocation = const LatLng(29.7604, -95.3698); // Houston default
+  List<Neighborhood> _neighborhoods = [];
+  List<PinnedLocation> _pinnedLocations = [];
+  Set<Marker> _markers = {};
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    try {
+      // Get current location
+      await _getCurrentLocation();
+
+      // Load neighborhoods data
+      _neighborhoods = FakeDataService.generateHoustonNeighborhoods();
+      await DatabaseService().saveNeighborhoods(_neighborhoods);
+
+      // Load pinned locations
+      _pinnedLocations = await DatabaseService().getPinnedLocations();
+
+      // Create markers
+      _createMarkers();
+
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error initializing map data: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      bool serviceEnabled = await _location.serviceEnabled();
+      if (!serviceEnabled) {
+        serviceEnabled = await _location.requestService();
+        if (!serviceEnabled) return;
+      }
+
+      PermissionStatus permissionGranted = await _location.hasPermission();
+      if (permissionGranted == PermissionStatus.denied) {
+        permissionGranted = await _location.requestPermission();
+        if (permissionGranted != PermissionStatus.granted) return;
+      }
+
+      LocationData locationData = await _location.getLocation();
+      if (locationData.latitude != null && locationData.longitude != null) {
+        setState(() {
+          _currentLocation = LatLng(locationData.latitude!, locationData.longitude!);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error getting location: $e');
+    }
+  }
+
+  void _createMarkers() {
+    Set<Marker> markers = {};
+
+    // Add neighborhood markers
+    for (final neighborhood in _neighborhoods) {
+      final status = neighborhood.status;
+      final color = _getStatusColor(status);
+
+      markers.add(
+        Marker(
+          markerId: MarkerId('neighborhood_${neighborhood.id}'),
+          position: LatLng(neighborhood.latitude, neighborhood.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(color)),
+          infoWindow: InfoWindow(
+            title: '${neighborhood.ranking}. ${neighborhood.name}',
+            snippet: '${status.displayName} - ${neighborhood.statusReason}',
+            onTap: () => _showNeighborhoodDetails(neighborhood),
+          ),
+        ),
+      );
+    }
+
+    // Add pinned location markers
+    for (final location in _pinnedLocations) {
+      markers.add(
+        Marker(
+          markerId: MarkerId('pinned_${location.id}'),
+          position: LatLng(location.latitude, location.longitude),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+          infoWindow: InfoWindow(
+            title: '${location.type.icon} ${location.name}',
+            snippet: location.address ?? location.type.displayName,
+            onTap: () => _showPinnedLocationDetails(location),
+          ),
+        ),
+      );
+    }
+
+    setState(() {
+      _markers = markers;
+    });
+  }
+
+  Color _getStatusColor(AirQualityStatus status) {
+    switch (status) {
+      case AirQualityStatus.good:
+        return Colors.green;
+      case AirQualityStatus.caution:
+        return Colors.orange;
+      case AirQualityStatus.avoid:
+        return Colors.red;
+    }
+  }
+
+  double _getMarkerHue(Color color) {
+    if (color == Colors.green) return BitmapDescriptor.hueGreen;
+    if (color == Colors.orange) return BitmapDescriptor.hueOrange;
+    if (color == Colors.red) return BitmapDescriptor.hueRed;
+    return BitmapDescriptor.hueBlue;
+  }
+
+  void _showNeighborhoodDetails(Neighborhood neighborhood) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => NeighborhoodDetailsSheet(neighborhood: neighborhood),
+    );
+  }
+
+  void _showPinnedLocationDetails(PinnedLocation location) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => PinnedLocationDetailsSheet(location: location),
+    );
+  }
+
+  void _onMapTapped(LatLng position) {
+    _showAddLocationDialog(position);
+  }
+
+  void _showAddLocationDialog(LatLng position) {
+    showDialog(
+      context: context,
+      builder: (context) => AddLocationDialog(
+        position: position,
+        onLocationAdded: (location) {
+          setState(() {
+            _pinnedLocations.add(location);
+          });
+          _createMarkers();
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Air Quality Map'),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.layers),
+            onPressed: _showMapLegend,
+          ),
+        ],
+      ),
+      body: GoogleMap(
+        onMapCreated: (GoogleMapController controller) {
+          _mapController = controller;
+        },
+        initialCameraPosition: CameraPosition(
+          target: _currentLocation,
+          zoom: 10.0,
+        ),
+        markers: _markers,
+        onTap: _onMapTapped,
+        myLocationEnabled: true,
+        myLocationButtonEnabled: true,
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          _mapController?.animateCamera(
+            CameraUpdate.newLatLng(_currentLocation),
+          );
+        },
+        child: const Icon(Icons.my_location),
+      ),
+    );
+  }
+
+  void _showMapLegend() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Map Legend'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildLegendItem(Colors.green, 'Good', 'Safe for all activities'),
+            _buildLegendItem(Colors.orange, 'Caution', 'Sensitive individuals should limit outdoor activities'),
+            _buildLegendItem(Colors.red, 'Avoid', 'Everyone should avoid prolonged outdoor exposure'),
+            const Divider(),
+            _buildLegendItem(Colors.purple, 'Pinned Location', 'Your saved locations (home, work, etc.)'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String title, String description) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        children: [
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  description,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class NeighborhoodDetailsSheet extends StatelessWidget {
+  final Neighborhood neighborhood;
+
+  const NeighborhoodDetailsSheet({Key? key, required this.neighborhood}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  '#${neighborhood.ranking}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  neighborhood.name,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildDetailRow('Status', neighborhood.status.displayName),
+          _buildDetailRow('Health Score', '${neighborhood.healthScore.toInt()}/100'),
+          _buildDetailRow('ZIP Codes', neighborhood.zipCodes.join(', ')),
+          const SizedBox(height: 12),
+          Text(
+            'Assessment:',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(neighborhood.statusReason),
+          if (neighborhood.currentAirQuality != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Current Air Quality:',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            _buildAirQualityMetrics(neighborhood.currentAirQuality!.metrics),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAirQualityMetrics(AirQualityMetrics metrics) {
+    return Column(
+      children: [
+        _buildMetricRow('PM2.5', metrics.pm25, 'μg/m³'),
+        _buildMetricRow('PM10', metrics.pm10, 'μg/m³'),
+        _buildMetricRow('Ozone', metrics.o3, 'ppb'),
+        _buildMetricRow('NO2', metrics.no2, 'ppb'),
+        _buildMetricRow('Wildfire', metrics.wildfireIndex, '/100'),
+        _buildMetricRow('Radon', metrics.radon, 'pCi/L'),
+      ],
+    );
+  }
+
+  Widget _buildMetricRow(String name, double value, String unit) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(name),
+          Text('${value.toStringAsFixed(1)} $unit'),
+        ],
+      ),
+    );
+  }
+}
+
+class PinnedLocationDetailsSheet extends StatelessWidget {
+  final PinnedLocation location;
+
+  const PinnedLocationDetailsSheet({Key? key, required this.location}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                location.type.icon,
+                style: const TextStyle(fontSize: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  location.name,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () {
+                  DatabaseService().deletePinnedLocation(location.id);
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildDetailRow('Type', location.type.displayName),
+          if (location.address != null)
+            _buildDetailRow('Address', location.address!),
+          _buildDetailRow('Added', _formatDate(location.createdAt)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.month}/${date.day}/${date.year}';
+  }
+}
+
+class AddLocationDialog extends StatefulWidget {
+  final LatLng position;
+  final Function(PinnedLocation) onLocationAdded;
+
+  const AddLocationDialog({
+    Key? key,
+    required this.position,
+    required this.onLocationAdded,
+  }) : super(key: key);
+
+  @override
+  State<AddLocationDialog> createState() => _AddLocationDialogState();
+}
+
+class _AddLocationDialogState extends State<AddLocationDialog> {
+  final _nameController = TextEditingController();
+  LocationType _selectedType = LocationType.home;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add Location'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: 'Location Name',
+              hintText: 'e.g., Home, Office, Gym',
+            ),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<LocationType>(
+            value: _selectedType,
+            decoration: const InputDecoration(labelText: 'Type'),
+            items: LocationType.values.map((type) {
+              return DropdownMenuItem(
+                value: type,
+                child: Row(
+                  children: [
+                    Text(type.icon),
+                    const SizedBox(width: 8),
+                    Text(type.displayName),
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedType = value!;
+              });
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _saveLocation,
+          child: const Text('Add'),
+        ),
+      ],
+    );
+  }
+
+  void _saveLocation() async {
+    if (_nameController.text.trim().isEmpty) return;
+
+    final location = PinnedLocation(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: _nameController.text.trim(),
+      type: _selectedType,
+      latitude: widget.position.latitude,
+      longitude: widget.position.longitude,
+      createdAt: DateTime.now(),
+    );
+
+    await DatabaseService().savePinnedLocation(location);
+    widget.onLocationAdded(location);
+
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+}
