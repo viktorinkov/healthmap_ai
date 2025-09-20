@@ -17,17 +17,26 @@ class WeatherService {
         return JSON.parse(cached);
       }
 
-      // Fetch from OpenWeather API
-      const response = await axios.get(`${this.baseUrl}/weather`, {
-        params: {
-          lat: latitude,
-          lon: longitude,
-          appid: this.apiKey,
-          units: 'metric'
-        }
-      });
+      // Fetch both current weather and UV data in parallel
+      const [weatherResponse, uvResponse] = await Promise.all([
+        axios.get(`${this.baseUrl}/weather`, {
+          params: {
+            lat: latitude,
+            lon: longitude,
+            appid: this.apiKey,
+            units: 'metric'
+          }
+        }),
+        axios.get(`${this.baseUrl}/uvi`, {
+          params: {
+            lat: latitude,
+            lon: longitude,
+            appid: this.apiKey
+          }
+        }).catch(() => null) // UV data might not be available
+      ]);
 
-      const data = this.transformWeatherData(response.data);
+      const data = this.transformWeatherData(weatherResponse.data, uvResponse?.data);
 
       // Cache the result
       await this.saveToCache(cacheKey, JSON.stringify(data), process.env.WEATHER_CACHE_TTL || 3600);
@@ -85,22 +94,183 @@ class WeatherService {
   }
 
   // Transform OpenWeather API response to our format
-  transformWeatherData(data) {
-    return {
-      temperature: data.main.temp,
-      feelsLike: data.main.feels_like,
-      humidity: data.main.humidity,
-      pressure: data.main.pressure,
-      windSpeed: data.wind.speed,
-      windDirection: data.wind.deg,
-      description: data.weather[0].description,
-      icon: data.weather[0].icon,
-      visibility: data.visibility,
-      clouds: data.clouds.all,
-      sunrise: new Date(data.sys.sunrise * 1000).toISOString(),
-      sunset: new Date(data.sys.sunset * 1000).toISOString(),
+  transformWeatherData(weatherData, uvData) {
+    const baseData = {
+      temperature: weatherData.main.temp,
+      feelsLike: weatherData.main.feels_like,
+      humidity: weatherData.main.humidity,
+      pressure: weatherData.main.pressure,
+      windSpeed: weatherData.wind?.speed || 0,
+      windDirection: weatherData.wind?.deg || 0,
+      description: weatherData.weather[0].description,
+      icon: weatherData.weather[0].icon,
+      visibility: weatherData.visibility || 0,
+      clouds: weatherData.clouds?.all || 0,
+      sunrise: new Date(weatherData.sys.sunrise * 1000).toISOString(),
+      sunset: new Date(weatherData.sys.sunset * 1000).toISOString(),
       timestamp: new Date().toISOString()
     };
+
+    // Add UV Index if available
+    if (uvData) {
+      baseData.uvIndex = uvData.value || 0;
+      baseData.uvRisk = this.getUVRiskLevel(uvData.value || 0);
+    } else {
+      baseData.uvIndex = null;
+      baseData.uvRisk = 'No data available';
+    }
+
+    // Detect stagnation events
+    baseData.stagnationEvent = this.detectStagnationEvent(baseData);
+
+    // Add weather alerts
+    baseData.alerts = this.generateWeatherAlerts(baseData);
+
+    return baseData;
+  }
+
+  // Get UV risk level
+  getUVRiskLevel(uvIndex) {
+    if (uvIndex <= 2) return 'Low';
+    if (uvIndex <= 5) return 'Moderate';
+    if (uvIndex <= 7) return 'High';
+    if (uvIndex <= 10) return 'Very High';
+    return 'Extreme';
+  }
+
+  // Detect atmospheric stagnation conditions
+  detectStagnationEvent(weatherData) {
+    const isStagnant =
+      weatherData.windSpeed < 3 && // Low wind speed (< 3 m/s)
+      weatherData.visibility < 5000 && // Reduced visibility (< 5km)
+      weatherData.pressure > 1020; // High pressure system
+
+    if (isStagnant) {
+      return {
+        active: true,
+        severity: weatherData.windSpeed < 1 ? 'High' : 'Moderate',
+        description: 'Atmospheric stagnation event detected - limited air movement',
+        recommendations: [
+          'Air pollutants may accumulate',
+          'Avoid outdoor activities if sensitive to air quality',
+          'Monitor air quality conditions closely'
+        ]
+      };
+    }
+
+    return {
+      active: false,
+      severity: 'None',
+      description: 'Normal atmospheric circulation',
+      recommendations: []
+    };
+  }
+
+  // Generate weather-based health alerts
+  generateWeatherAlerts(weatherData) {
+    const alerts = [];
+
+    // Temperature extremes
+    if (weatherData.temperature > 35) {
+      alerts.push({
+        type: 'heat',
+        severity: 'High',
+        title: 'Extreme Heat Warning',
+        description: `Temperature: ${weatherData.temperature}°C`,
+        recommendations: [
+          'Avoid outdoor activities during peak hours',
+          'Stay hydrated',
+          'Seek air-conditioned spaces',
+          'Watch for heat exhaustion symptoms'
+        ]
+      });
+    } else if (weatherData.temperature > 30) {
+      alerts.push({
+        type: 'heat',
+        severity: 'Moderate',
+        title: 'Heat Advisory',
+        description: `Temperature: ${weatherData.temperature}°C`,
+        recommendations: [
+          'Limit prolonged outdoor exposure',
+          'Drink plenty of water',
+          'Take frequent breaks in shade'
+        ]
+      });
+    }
+
+    if (weatherData.temperature < -10) {
+      alerts.push({
+        type: 'cold',
+        severity: 'High',
+        title: 'Extreme Cold Warning',
+        description: `Temperature: ${weatherData.temperature}°C`,
+        recommendations: [
+          'Limit outdoor exposure',
+          'Dress in layers',
+          'Protect exposed skin',
+          'Watch for frostbite and hypothermia'
+        ]
+      });
+    }
+
+    // UV Index alerts
+    if (weatherData.uvIndex && weatherData.uvIndex > 7) {
+      alerts.push({
+        type: 'uv',
+        severity: weatherData.uvIndex > 10 ? 'High' : 'Moderate',
+        title: 'High UV Exposure',
+        description: `UV Index: ${weatherData.uvIndex} (${weatherData.uvRisk})`,
+        recommendations: [
+          'Use SPF 30+ sunscreen',
+          'Wear protective clothing',
+          'Seek shade during peak hours (10 AM - 4 PM)',
+          'Wear sunglasses'
+        ]
+      });
+    }
+
+    // Humidity alerts
+    if (weatherData.humidity > 85) {
+      alerts.push({
+        type: 'humidity',
+        severity: 'Moderate',
+        title: 'High Humidity',
+        description: `Humidity: ${weatherData.humidity}%`,
+        recommendations: [
+          'Increased heat stress risk',
+          'Stay in air-conditioned areas',
+          'Reduce physical activity outdoors'
+        ]
+      });
+    }
+
+    // Visibility alerts
+    if (weatherData.visibility < 1000) {
+      alerts.push({
+        type: 'visibility',
+        severity: 'High',
+        title: 'Poor Visibility',
+        description: `Visibility: ${weatherData.visibility}m`,
+        recommendations: [
+          'Avoid outdoor activities',
+          'Air quality may be compromised',
+          'Use caution if travel is necessary'
+        ]
+      });
+    }
+
+    // Stagnation alert
+    if (weatherData.stagnationEvent.active) {
+      alerts.push({
+        type: 'stagnation',
+        severity: weatherData.stagnationEvent.severity,
+        title: 'Atmospheric Stagnation',
+        description: weatherData.stagnationEvent.description,
+        recommendations: weatherData.stagnationEvent.recommendations
+      });
+    }
+
+    return alerts;
   }
 
   // Transform forecast data

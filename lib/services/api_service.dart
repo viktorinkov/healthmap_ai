@@ -45,17 +45,15 @@ class ApiService {
 
   // Authentication endpoints
   static Future<Map<String, dynamic>> register({
-    required String email,
+    required String username,
     required String password,
-    String? name,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
       headers: _getHeaders(includeAuth: false),
       body: jsonEncode({
-        'email': email,
+        'username': username,
         'password': password,
-        if (name != null) 'name': name,
       }),
     );
 
@@ -69,14 +67,14 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> login({
-    required String email,
+    required String username,
     required String password,
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/login'),
       headers: _getHeaders(includeAuth: false),
       body: jsonEncode({
-        'email': email,
+        'username': username,
         'password': password,
       }),
     );
@@ -223,6 +221,20 @@ class ApiService {
   }) async {
     final response = await http.get(
       Uri.parse('$baseUrl/weather/environmental?lat=$latitude&lon=$longitude'),
+      headers: _getHeaders(includeAuth: false),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  // Wildfire data
+  static Future<Map<String, dynamic>> getWildfireData({
+    required double latitude,
+    required double longitude,
+    int radius = 100,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/weather/wildfire?lat=$latitude&lon=$longitude&radius=$radius'),
       headers: _getHeaders(includeAuth: false),
     );
 

@@ -2,6 +2,7 @@ const express = require('express');
 const { query, validationResult } = require('express-validator');
 const weatherService = require('../services/weather.service');
 const pollenService = require('../services/pollen.service');
+const wildfireService = require('../services/wildfire.service');
 const { authMiddleware, optionalAuth } = require('../middleware/auth.middleware');
 const { getOne, getAll } = require('../config/database');
 
@@ -167,7 +168,48 @@ router.get('/pollen/forecast',
   }
 );
 
-// Get combined environmental data (weather + pollen + air quality)
+// Get wildfire data for a location
+router.get('/wildfire',
+  [
+    query('lat').isFloat({ min: -90, max: 90 }),
+    query('lon').isFloat({ min: -180, max: 180 }),
+    query('radius').optional().isInt({ min: 10, max: 500 })
+  ],
+  optionalAuth,
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { lat, lon, radius } = req.query;
+      const wildfire = await wildfireService.getWildfireData(
+        parseFloat(lat),
+        parseFloat(lon),
+        radius ? parseInt(radius) : 100
+      );
+
+      // If user is authenticated, check if this is one of their pins and store history
+      if (req.user) {
+        const pin = await getOne(
+          'SELECT id FROM pins WHERE user_id = ? AND latitude = ? AND longitude = ?',
+          [req.user.id, lat, lon]
+        );
+
+        if (pin) {
+          await wildfireService.storeWildfireHistory(pin.id, wildfire);
+        }
+      }
+
+      res.json(wildfire);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Get combined environmental data (weather + pollen + air quality + wildfire)
 router.get('/environmental',
   [
     query('lat').isFloat({ min: -90, max: 90 }),
@@ -186,10 +228,11 @@ router.get('/environmental',
       const longitude = parseFloat(lon);
 
       // Fetch all data in parallel
-      const [weather, pollen, airQuality] = await Promise.all([
+      const [weather, pollen, airQuality, wildfire] = await Promise.all([
         weatherService.getCurrentWeather(latitude, longitude).catch(err => ({ error: err.message })),
         pollenService.getCurrentPollen(latitude, longitude).catch(err => ({ error: err.message })),
-        require('../services/airQuality.service').getCurrentAirQuality(latitude, longitude).catch(err => ({ error: err.message }))
+        require('../services/airQuality.service').getCurrentAirQuality(latitude, longitude).catch(err => ({ error: err.message })),
+        wildfireService.getWildfireData(latitude, longitude, 100).catch(err => ({ error: err.message }))
       ]);
 
       res.json({
@@ -197,6 +240,7 @@ router.get('/environmental',
         weather,
         pollen,
         airQuality,
+        wildfire,
         timestamp: new Date().toISOString()
       });
     } catch (error) {

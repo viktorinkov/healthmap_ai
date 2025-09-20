@@ -120,6 +120,20 @@ async function initializeDatabase() {
         )
       `);
 
+      // Historical wildfire data
+      database.run(`
+        CREATE TABLE IF NOT EXISTS wildfire_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pin_id INTEGER NOT NULL,
+          risk_level TEXT,
+          nearby_fires INTEGER,
+          closest_fire_distance REAL,
+          smoke_impact TEXT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (pin_id) REFERENCES pins (id) ON DELETE CASCADE
+        )
+      `);
+
       // Cache table for external API responses
       database.run(`
         CREATE TABLE IF NOT EXISTS api_cache (
@@ -148,11 +162,13 @@ async function initializeDatabase() {
       database.run(`CREATE INDEX IF NOT EXISTS idx_air_quality_pin_id ON air_quality_history(pin_id)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_weather_pin_id ON weather_history(pin_id)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_pollen_pin_id ON pollen_history(pin_id)`);
+      database.run(`CREATE INDEX IF NOT EXISTS idx_wildfire_pin_id ON wildfire_history(pin_id)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_cache_key ON api_cache(cache_key)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`);
 
       database.run(`CREATE INDEX IF NOT EXISTS idx_air_quality_timestamp ON air_quality_history(timestamp)`);
-      database.run(`CREATE INDEX IF NOT EXISTS idx_weather_timestamp ON weather_history(timestamp)`, (err) => {
+      database.run(`CREATE INDEX IF NOT EXISTS idx_weather_timestamp ON weather_history(timestamp)`);
+      database.run(`CREATE INDEX IF NOT EXISTS idx_wildfire_timestamp ON wildfire_history(timestamp)`, (err) => {
         if (err) {
           reject(err);
         } else {
