@@ -8,6 +8,7 @@ import '../../services/fake_data_service.dart';
 import '../../services/database_service.dart';
 import '../../widgets/add_location_dialog.dart';
 import '../../widgets/pinned_location_sheet.dart';
+import '../../widgets/neighborhood_report_sheet.dart';
 
 class MapTab extends StatefulWidget {
   const MapTab({Key? key}) : super(key: key);
@@ -18,11 +19,12 @@ class MapTab extends StatefulWidget {
 
 class _MapTabState extends State<MapTab> {
   GoogleMapController? _mapController;
-  Location _location = Location();
-  LatLng _currentLocation = const LatLng(29.7604, -95.3698); // Houston default
+  final Location _location = Location();
+  LatLng _currentLocation = const LatLng(29.7174, -95.4018); // Rice University, Houston
   List<Neighborhood> _neighborhoods = [];
   List<PinnedLocation> _pinnedLocations = [];
   Set<Marker> _markers = {};
+  Set<Polygon> _polygons = {};
   bool _isLoading = true;
 
   @override
@@ -43,8 +45,8 @@ class _MapTabState extends State<MapTab> {
       // Load pinned locations
       _pinnedLocations = await DatabaseService().getPinnedLocations();
 
-      // Create markers
-      _createMarkers();
+      // Create markers and polygons
+      _createMarkersAndPolygons();
 
       setState(() {
         _isLoading = false;
@@ -82,29 +84,35 @@ class _MapTabState extends State<MapTab> {
     }
   }
 
-  void _createMarkers() {
+  void _createMarkersAndPolygons() {
     Set<Marker> markers = {};
+    Set<Polygon> polygons = {};
 
-    // Add neighborhood markers
+    // Create polygons for neighborhoods (air quality visualization)
     for (final neighborhood in _neighborhoods) {
       final status = neighborhood.status;
       final color = _getStatusColor(status);
 
-      markers.add(
-        Marker(
-          markerId: MarkerId('neighborhood_${neighborhood.id}'),
-          position: LatLng(neighborhood.latitude, neighborhood.longitude),
-          icon: BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(color)),
-          infoWindow: InfoWindow(
-            title: '${neighborhood.ranking}. ${neighborhood.name}',
-            snippet: '${status.displayName} - ${neighborhood.statusReason}',
-            onTap: () => _showNeighborhoodDetails(neighborhood),
-          ),
+      // Create polygon points around neighborhood center
+      final polygonPoints = _generateNeighborhoodPolygon(
+        LatLng(neighborhood.latitude, neighborhood.longitude),
+        neighborhood.name,
+      );
+
+      polygons.add(
+        Polygon(
+          polygonId: PolygonId('neighborhood_${neighborhood.id}'),
+          points: polygonPoints,
+          fillColor: color.withValues(alpha: 0.3),
+          strokeColor: color.withValues(alpha: 0.8),
+          strokeWidth: 2,
+          consumeTapEvents: true,
+          onTap: () => _showNeighborhoodReport(neighborhood),
         ),
       );
     }
 
-    // Add pinned location markers
+    // Add pinned location markers (modern Material 3 style)
     for (final location in _pinnedLocations) {
       markers.add(
         Marker(
@@ -122,6 +130,7 @@ class _MapTabState extends State<MapTab> {
 
     setState(() {
       _markers = markers;
+      _polygons = polygons;
     });
   }
 
@@ -136,17 +145,52 @@ class _MapTabState extends State<MapTab> {
     }
   }
 
-  double _getMarkerHue(Color color) {
-    if (color == Colors.green) return BitmapDescriptor.hueGreen;
-    if (color == Colors.orange) return BitmapDescriptor.hueOrange;
-    if (color == Colors.red) return BitmapDescriptor.hueRed;
-    return BitmapDescriptor.hueBlue;
+
+  List<LatLng> _generateNeighborhoodPolygon(LatLng center, String neighborhoodName) {
+    // Generate approximate neighborhood boundaries
+    // In a real app, you'd use actual neighborhood boundary data
+    final double radius = _getNeighborhoodRadius(neighborhoodName);
+    final List<LatLng> points = [];
+
+    // Create a roughly circular polygon with some variation
+    const int numPoints = 8;
+    for (int i = 0; i < numPoints; i++) {
+      final double angle = (i * 2 * 3.14159) / numPoints;
+      final double variation = 0.7 + (0.6 * ((i % 3) / 3.0)); // Add some irregularity
+      final double adjustedRadius = radius * variation;
+
+      final double lat = center.latitude + (adjustedRadius * 0.009 * (angle > 3.14159 ? -1 : 1) * (1 + 0.3 * (i % 2)));
+      final double lng = center.longitude + (adjustedRadius * 0.012 * (angle > 1.57 && angle < 4.71 ? -1 : 1) * (1 + 0.2 * ((i + 1) % 2)));
+
+      points.add(LatLng(lat, lng));
+    }
+
+    return points;
   }
 
-  void _showNeighborhoodDetails(Neighborhood neighborhood) {
+  double _getNeighborhoodRadius(String name) {
+    // Different neighborhoods have different sizes
+    switch (name.toLowerCase()) {
+      case 'rice village':
+      case 'museum district':
+        return 0.8; // Smaller dense areas
+      case 'river oaks':
+      case 'memorial':
+        return 1.5; // Larger residential areas
+      case 'downtown':
+      case 'galleria':
+        return 2.0; // Large commercial areas
+      default:
+        return 1.0; // Default size
+    }
+  }
+
+  void _showNeighborhoodReport(Neighborhood neighborhood) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => NeighborhoodDetailsSheet(neighborhood: neighborhood),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => NeighborhoodReportSheet(neighborhood: neighborhood),
     );
   }
 
@@ -161,7 +205,7 @@ class _MapTabState extends State<MapTab> {
           setState(() {
             _pinnedLocations.removeWhere((l) => l.id == location.id);
           });
-          _createMarkers();
+          _createMarkersAndPolygons();
         },
       ),
     );
@@ -180,7 +224,7 @@ class _MapTabState extends State<MapTab> {
           setState(() {
             _pinnedLocations.add(location);
           });
-          _createMarkers();
+          _createMarkersAndPolygons();
         },
       ),
     );
@@ -214,9 +258,10 @@ class _MapTabState extends State<MapTab> {
         },
         initialCameraPosition: CameraPosition(
           target: _currentLocation,
-          zoom: 10.0,
+          zoom: 12.0,
         ),
         markers: _markers,
+        polygons: _polygons,
         onTap: _onMapTapped,
         myLocationEnabled: true,
         myLocationButtonEnabled: true,

@@ -5,38 +5,28 @@ import '../models/neighborhood.dart';
 class FakeDataService {
   static final Random _random = Random();
 
-  // Houston neighborhoods with approximate coordinates
+  // Rice University area neighborhoods with detailed coordinates
   static const List<Map<String, dynamic>> _houstonNeighborhoods = [
-    {'name': 'Downtown', 'lat': 29.7604, 'lng': -95.3698, 'zips': ['77002', '77003', '77004']},
-    {'name': 'River Oaks', 'lat': 29.7516, 'lng': -95.4224, 'zips': ['77027', '77019']},
-    {'name': 'Memorial', 'lat': 29.7841, 'lng': -95.4618, 'zips': ['77024', '77079']},
-    {'name': 'The Heights', 'lat': 29.8027, 'lng': -95.3987, 'zips': ['77008', '77009']},
-    {'name': 'Montrose', 'lat': 29.7422, 'lng': -95.3876, 'zips': ['77006', '77098']},
-    {'name': 'Galleria', 'lat': 29.7390, 'lng': -95.4637, 'zips': ['77056', '77057']},
+    // Core Rice University area
+    {'name': 'Rice Village', 'lat': 29.7174, 'lng': -95.4018, 'zips': ['77005']},
+    {'name': 'West University', 'lat': 29.7180, 'lng': -95.4351, 'zips': ['77005']},
+    {'name': 'Southampton', 'lat': 29.7089, 'lng': -95.4102, 'zips': ['77025']},
+    {'name': 'Museum District', 'lat': 29.7215, 'lng': -95.3899, 'zips': ['77004']},
     {'name': 'Medical Center', 'lat': 29.7072, 'lng': -95.3978, 'zips': ['77030', '77054']},
-    {'name': 'Bellaire', 'lat': 29.7058, 'lng': -95.4612, 'zips': ['77401', '77025']},
-    {'name': 'Sugar Land', 'lat': 29.6196, 'lng': -95.6349, 'zips': ['77478', '77479']},
-    {'name': 'Katy', 'lat': 29.7858, 'lng': -95.8244, 'zips': ['77449', '77494']},
-    {'name': 'The Woodlands', 'lat': 30.1588, 'lng': -95.4613, 'zips': ['77380', '77381']},
-    {'name': 'Clear Lake', 'lat': 29.5722, 'lng': -95.1379, 'zips': ['77058', '77062']},
-    {'name': 'Pasadena', 'lat': 29.6911, 'lng': -95.2091, 'zips': ['77502', '77504']},
-    {'name': 'Humble', 'lat': 29.9988, 'lng': -95.2621, 'zips': ['77338', '77339']},
-    {'name': 'Spring', 'lat': 30.0799, 'lng': -95.4172, 'zips': ['77373', '77379']},
-    {'name': 'Cypress', 'lat': 29.9691, 'lng': -95.6972, 'zips': ['77429', '77433']},
-    {'name': 'Pearland', 'lat': 29.5638, 'lng': -95.2861, 'zips': ['77581', '77584']},
-    {'name': 'League City', 'lat': 29.5074, 'lng': -95.0949, 'zips': ['77573', '77574']},
-    {'name': 'Friendswood', 'lat': 29.5294, 'lng': -95.2010, 'zips': ['77546']},
-    {'name': 'Missouri City', 'lat': 29.6185, 'lng': -95.5377, 'zips': ['77459', '77489']},
-    {'name': 'Stafford', 'lat': 29.6160, 'lng': -95.5521, 'zips': ['77477']},
-    {'name': 'Conroe', 'lat': 30.3118, 'lng': -95.4561, 'zips': ['77301', '77304']},
-    {'name': 'Tomball', 'lat': 30.0971, 'lng': -95.6160, 'zips': ['77375', '77377']},
-    {'name': 'Kingwood', 'lat': 30.0533, 'lng': -95.1888, 'zips': ['77339', '77345']},
-    {'name': 'Channelview', 'lat': 29.7769, 'lng': -95.1121, 'zips': ['77530']},
-    {'name': 'Deer Park', 'lat': 29.7052, 'lng': -95.1238, 'zips': ['77536']},
-    {'name': 'La Porte', 'lat': 29.6658, 'lng': -95.0194, 'zips': ['77571']},
-    {'name': 'Baytown', 'lat': 29.7355, 'lng': -94.9774, 'zips': ['77520', '77521']},
-    {'name': 'Atascocita', 'lat': 29.9991, 'lng': -95.1777, 'zips': ['77346']},
-    {'name': 'West University Place', 'lat': 29.7180, 'lng': -95.4399, 'zips': ['77005']},
+
+    // Nearby affluent areas
+    {'name': 'River Oaks', 'lat': 29.7516, 'lng': -95.4224, 'zips': ['77027', '77019']},
+    {'name': 'Montrose', 'lat': 29.7422, 'lng': -95.3876, 'zips': ['77006', '77098']},
+    {'name': 'Upper Kirby', 'lat': 29.7380, 'lng': -95.4105, 'zips': ['77098']},
+    {'name': 'Greenway Plaza', 'lat': 29.7360, 'lng': -95.4480, 'zips': ['77046']},
+    {'name': 'Bellaire', 'lat': 29.7058, 'lng': -95.4585, 'zips': ['77401']},
+
+    // Surrounding areas
+    {'name': 'Meyerland', 'lat': 29.6890, 'lng': -95.4640, 'zips': ['77096']},
+    {'name': 'Braeswood', 'lat': 29.6950, 'lng': -95.4350, 'zips': ['77025']},
+    {'name': 'Gulfton', 'lat': 29.7180, 'lng': -95.4520, 'zips': ['77036']},
+    {'name': 'Sharpstown', 'lat': 29.7040, 'lng': -95.4890, 'zips': ['77036']},
+    {'name': 'Westchase', 'lat': 29.7320, 'lng': -95.5150, 'zips': ['77042']},
   ];
 
   static List<Neighborhood> generateHoustonNeighborhoods() {
@@ -128,25 +118,10 @@ class FakeDataService {
           'radon': 2.5,
         };
 
-      case 'river oaks':
-      case 'memorial':
-      case 'bellaire':
-      case 'west university place':
-        // Affluent residential areas - moderate pollution
-        return {
-          'pm25': 12.0,
-          'pm10': 25.0,
-          'o3': 45.0,
-          'no2': 25.0,
-          'wildfire': 10.0,
-          'radon': 2.0,
-        };
-
-      case 'the woodlands':
-      case 'sugar land':
-      case 'kingwood':
-      case 'friendswood':
-        // Suburban areas - lower pollution
+      case 'rice village':
+      case 'west university':
+      case 'southampton':
+        // University area - excellent air quality
         return {
           'pm25': 8.0,
           'pm10': 18.0,
@@ -156,19 +131,57 @@ class FakeDataService {
           'radon': 1.5,
         };
 
-      case 'pasadena':
-      case 'baytown':
-      case 'deer park':
-      case 'channelview':
-        // Industrial areas - higher pollution
+      case 'river oaks':
+      case 'montrose':
+      case 'bellaire':
+      case 'upper kirby':
+        // Affluent residential areas - good air quality
         return {
-          'pm25': 22.0,
-          'pm10': 42.0,
-          'o3': 65.0,
-          'no2': 45.0,
-          'wildfire': 20.0,
-          'radon': 3.0,
+          'pm25': 12.0,
+          'pm10': 25.0,
+          'o3': 45.0,
+          'no2': 25.0,
+          'wildfire': 10.0,
+          'radon': 2.0,
         };
+
+      case 'museum district':
+      case 'greenway plaza':
+        // Cultural/commercial areas - moderate traffic
+        return {
+          'pm25': 15.0,
+          'pm10': 30.0,
+          'o3': 50.0,
+          'no2': 30.0,
+          'wildfire': 12.0,
+          'radon': 2.2,
+        };
+
+      case 'meyerland':
+      case 'braeswood':
+        // Residential areas - good air quality
+        return {
+          'pm25': 10.0,
+          'pm10': 22.0,
+          'o3': 40.0,
+          'no2': 22.0,
+          'wildfire': 9.0,
+          'radon': 1.8,
+        };
+
+      case 'gulfton':
+      case 'sharpstown':
+      case 'westchase':
+        // Mixed residential/commercial - moderate pollution
+        return {
+          'pm25': 16.0,
+          'pm10': 32.0,
+          'o3': 52.0,
+          'no2': 32.0,
+          'wildfire': 14.0,
+          'radon': 2.4,
+        };
+
 
       default:
         // Average suburban area
