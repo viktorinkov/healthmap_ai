@@ -5,6 +5,7 @@ import 'screens/main/home_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'services/database_service.dart';
 import 'services/api_service.dart';
+import 'services/persona_verification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,9 @@ void main() async {
 
   // Initialize API service
   await ApiService.init();
+
+  // Initialize PersonaVerificationService for deep link handling
+  await PersonaVerificationService().initialize();
 
   runApp(const HealthMapApp());
 }
