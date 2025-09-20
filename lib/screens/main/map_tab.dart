@@ -9,7 +9,7 @@ import '../../services/air_quality_api_service.dart';
 import '../../services/database_service.dart';
 import '../../services/unified_air_quality_service.dart';
 import '../../widgets/add_location_dialog.dart';
-import '../../widgets/pin_info_dialog.dart';
+import '../../widgets/unified_location_card.dart';
 
 class MapTab extends StatefulWidget {
   const MapTab({Key? key}) : super(key: key);
@@ -164,9 +164,21 @@ class _MapTabState extends State<MapTab> {
   void _showPinnedLocationDetails(PinnedLocation location) {
     showDialog(
       context: context,
-      builder: (context) => PinInfoDialog(
-        location: location,
-        airQuality: _locationAirQuality[location.id],
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: SingleChildScrollView(
+            child: UnifiedLocationCard(
+              location: location,
+              airQuality: _locationAirQuality[location.id],
+              showFullDetails: true,
+              hideDetailsButton: true,
+            ),
+          ),
+        ),
       ),
     );
   }

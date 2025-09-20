@@ -12,11 +12,16 @@ class GeminiService {
     if (_model == null) {
       try {
         final apiKey = ApiKeys.geminiApiKey;
+        debugPrint('Initializing Gemini model...');
+        debugPrint('API Key present: ${apiKey.isNotEmpty}');
         if (apiKey.isNotEmpty) {
           _model = GenerativeModel(
             model: 'gemini-1.5-flash',
             apiKey: apiKey,
           );
+          debugPrint('Gemini model initialized successfully');
+        } else {
+          debugPrint('Gemini API key is empty');
         }
       } catch (e) {
         debugPrint('Failed to initialize Gemini model: $e');
@@ -292,6 +297,9 @@ Generate personalized daily tasks:
     String? locationName,
   }) async {
     try {
+      debugPrint('Generating Gemini assessment for location: $locationName');
+      debugPrint('API Key configured: ${ApiKeys.hasGeminiKey}');
+
       final prompt = '''
 You are an expert environmental health scientist specializing in air quality assessment. Analyze the following pollutant measurements and provide an intelligent assessment.
 
@@ -323,19 +331,24 @@ Justification: [One clear sentence explaining the primary health concern]
 Provide your assessment:''';
 
       if (model == null) {
+        debugPrint('Gemini model is null - API key might be missing');
         throw Exception('Gemini not configured');
       }
 
+      debugPrint('Calling Gemini API...');
       final response = await model!.generateContent([Content.text(prompt)]);
 
       if (response.text != null) {
+        debugPrint('Gemini response received: ${response.text!.substring(0, 100 > response.text!.length ? response.text!.length : 100)}...');
         return _parseAirQualityAssessment(response.text!);
       } else {
+        debugPrint('Gemini returned null response');
         throw Exception('No assessment available');
       }
     } catch (e) {
       debugPrint('Error generating Gemini air quality assessment: $e');
-      throw Exception('Assessment unavailable');
+      debugPrint('Error type: ${e.runtimeType}');
+      throw Exception('Assessment unavailable: $e');
     }
   }
 

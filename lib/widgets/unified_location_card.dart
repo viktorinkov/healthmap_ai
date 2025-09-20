@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/pinned_location.dart';
 import '../models/air_quality.dart';
-import '../models/environmental_measurements.dart';
-import '../services/environmental_measurements_service.dart';
 import '../screens/charts/location_charts_screen.dart';
 import '../screens/charts/location_forecast_screen.dart';
-import 'environmental_measurements_card.dart';
-import 'pin_info_dialog.dart';
 
 class UnifiedLocationCard extends StatefulWidget {
   final PinnedLocation? location;
@@ -16,6 +12,7 @@ class UnifiedLocationCard extends StatefulWidget {
   final VoidCallback? onRefresh;
   final String? geminiAssessment;
   final String? customTitle;
+  final bool hideDetailsButton;
 
   const UnifiedLocationCard({
     Key? key,
@@ -26,6 +23,7 @@ class UnifiedLocationCard extends StatefulWidget {
     this.onRefresh,
     this.geminiAssessment,
     this.customTitle,
+    this.hideDetailsButton = false,
   }) : super(key: key);
 
   @override
@@ -33,44 +31,6 @@ class UnifiedLocationCard extends StatefulWidget {
 }
 
 class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
-  EnvironmentalMeasurements? _environmentalMeasurements;
-  bool _loadingEnvironmental = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.showFullDetails && widget.location != null) {
-      _loadEnvironmentalHealth();
-    }
-  }
-
-  Future<void> _loadEnvironmentalHealth() async {
-    setState(() {
-      _loadingEnvironmental = true;
-    });
-
-    try {
-      final measurements = await EnvironmentalMeasurementsService.getEnvironmentalMeasurements(
-        locationId: widget.location!.id,
-        latitude: widget.location!.latitude,
-        longitude: widget.location!.longitude,
-        locationName: widget.location!.name,
-      );
-
-      if (mounted) {
-        setState(() {
-          _environmentalMeasurements = measurements;
-          _loadingEnvironmental = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loadingEnvironmental = false;
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +43,7 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
         : Theme.of(context).colorScheme.surface,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: widget.location != null ? () => _showDetailedInfo() : null,
+        onTap: widget.location != null && !widget.hideDetailsButton ? () => _showDetailedInfo() : null,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -103,16 +63,6 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
                 const SizedBox(height: 12),
                 _buildNoDataMessage(),
               ],
-              if (widget.showFullDetails && _loadingEnvironmental)
-                const Padding(
-                  padding: EdgeInsets.only(top: 16),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (widget.showFullDetails && _environmentalMeasurements != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: EnvironmentalMeasurementsCard(measurements: _environmentalMeasurements),
-                ),
             ],
           ),
         ),
@@ -472,21 +422,23 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _showDetailedInfo,
-            icon: const Icon(Icons.info_outline),
-            label: const Text('Details'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+        if (!widget.hideDetailsButton) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _showDetailedInfo,
+              icon: const Icon(Icons.info_outline),
+              label: const Text('Details'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -561,15 +513,8 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
 
 
   void _showDetailedInfo() {
-    if (widget.location != null && widget.airQuality != null) {
-      showDialog(
-        context: context,
-        builder: (context) => PinInfoDialog(
-          location: widget.location!,
-          airQuality: widget.airQuality,
-        ),
-      );
-    }
+    // This method is no longer needed when hideDetailsButton is true
+    // The dialog is already showing the full card
   }
 
 }

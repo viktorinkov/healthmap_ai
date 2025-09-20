@@ -613,6 +613,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
         isCurrentLocation: isCurrentLocation,
         customTitle: customTitle,
         onRefresh: _loadData,
+        hideDetailsButton: true,
       );
     }
 
@@ -645,9 +646,9 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
         if (snapshot.hasData && snapshot.data != null) {
           geminiAssessment = snapshot.data!['justification'] as String;
         } else if (snapshot.connectionState == ConnectionState.waiting) {
-          geminiAssessment = 'Getting AI assessment...';
-        } else if (snapshot.hasError) {
-          geminiAssessment = 'AI assessment unavailable';
+          geminiAssessment = 'Analyzing air quality data...';
+        } else {
+          geminiAssessment = 'No assessment available';
         }
 
         return UnifiedLocationCard(
@@ -658,6 +659,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
           showFullDetails: false,
           onRefresh: _loadData,
           geminiAssessment: geminiAssessment,
+          hideDetailsButton: true,
         );
       },
     );
