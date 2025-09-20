@@ -258,7 +258,12 @@ class _PinInfoDialogState extends State<PinInfoDialog> {
   }
 
   Widget _buildAirScoreSection(BuildContext context, AirQualityData data) {
-    final aqi = data.metrics.universalAqi ?? (100 - data.metrics.overallScore).round();
+    final aqi = data.metrics.universalAqi;
+
+    // Don't show air score section if no real AQI data available
+    if (aqi == null) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -949,8 +954,12 @@ class _PinInfoDialogState extends State<PinInfoDialog> {
   }
 
   Widget _buildAirQualityTrend(BuildContext context) {
-    final currentAqi = widget.airQuality!.metrics.universalAqi ??
-                       (100 - widget.airQuality!.metrics.overallScore).round();
+    final currentAqi = widget.airQuality!.metrics.universalAqi;
+
+    // Don't show trend if no real AQI data available
+    if (currentAqi == null) {
+      return const SizedBox.shrink();
+    }
 
     // Create a simulated trend for the next 12 hours based on current conditions
     final trendData = _generateAirQualityTrend(currentAqi);

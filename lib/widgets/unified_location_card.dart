@@ -14,6 +14,7 @@ class UnifiedLocationCard extends StatefulWidget {
   final bool isCurrentLocation;
   final bool showFullDetails;
   final VoidCallback? onRefresh;
+  final String? geminiAssessment;
   final String? customTitle;
 
   const UnifiedLocationCard({
@@ -23,6 +24,7 @@ class UnifiedLocationCard extends StatefulWidget {
     this.isCurrentLocation = false,
     this.showFullDetails = false,
     this.onRefresh,
+    this.geminiAssessment,
     this.customTitle,
   }) : super(key: key);
 
@@ -174,7 +176,7 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
             ],
           ),
         ),
-        if (widget.airQuality != null) _buildStatusBadge(_getStatusFromUniversalAqi()),
+        if (widget.airQuality != null) _buildStatusBadge(widget.airQuality!.status),
       ],
     );
   }
@@ -211,8 +213,45 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
   }
 
   Widget _buildUniversalAqi() {
-    final aqi = widget.airQuality!.metrics.universalAqi ??
-                 (100 - widget.airQuality!.metrics.overallScore).round();
+    // If Gemini assessment is provided, show that instead
+    if (widget.geminiAssessment != null && widget.geminiAssessment!.isNotEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: widget.isCurrentLocation
+            ? Theme.of(context).colorScheme.surface.withValues(alpha: 0.7)
+            : Theme.of(context).colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.psychology,
+              size: 20,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                widget.geminiAssessment!,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: widget.isCurrentLocation
+                    ? Theme.of(context).colorScheme.onSecondaryContainer
+                    : Theme.of(context).colorScheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Only show Universal AQI if available from API
+    final aqi = widget.airQuality!.metrics.universalAqi;
+    if (aqi == null) {
+      return const SizedBox.shrink(); // Don't show anything if no real AQI data
+    }
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -268,7 +307,8 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
       _PollutantInfo('Ox', metrics.ox, 'ppb', metrics.ox != null),
       _PollutantInfo('NMHC', metrics.nmhc, 'ppb', metrics.nmhc != null),
       _PollutantInfo('TRS', metrics.trs, 'μg/m³', metrics.trs != null),
-      // Additional metrics
+      // Additional metrics - only show if available
+      if (metrics.universalAqi != null) _PollutantInfo('Universal AQI', metrics.universalAqi!.toDouble(), '', true),
       _PollutantInfo('Wildfire Index', metrics.wildfireIndex, '', true),
       _PollutantInfo('Radon', metrics.radon, 'pCi/L', true),
     ];
@@ -518,12 +558,6 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
     }
   }
 
-  AirQualityStatus _getStatusFromUniversalAqi() {
-    final aqi = widget.airQuality!.metrics.universalAqi ??
-                 (100 - widget.airQuality!.metrics.overallScore).round();
-
-    return AirQualityStatusExtension.fromScore(aqi.toDouble());
-  }
 
 
   void _showDetailedInfo() {
@@ -537,6 +571,7 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
       );
     }
   }
+
 }
 
 class _PollutantInfo {

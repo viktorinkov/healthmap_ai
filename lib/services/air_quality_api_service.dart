@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/air_quality.dart';
 import 'api_keys.dart';
@@ -43,12 +44,12 @@ class AirQualityApiService {
         final data = jsonDecode(response.body);
         return _parseAirQualityResponse(data, latitude, longitude, locationName);
       } else {
-        print('Error fetching air quality data: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        debugPrint('Error fetching air quality data: ${response.statusCode}');
+        debugPrint('Response body: ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Exception fetching air quality data: $e');
+      debugPrint('Exception fetching air quality data: $e');
       return null;
     }
   }
@@ -168,7 +169,7 @@ class AirQualityApiService {
       );
 
       final status = _getStatusFromAqi(aqiValue);
-      final statusReason = universalAqi['displayName'] ?? 'Air quality assessment based on current conditions';
+      final statusReason = universalAqi['displayName'] ?? '';
 
       // Parse health recommendations if available
       List<HealthRecommendationTag>? healthRecommendations;
@@ -189,7 +190,7 @@ class AirQualityApiService {
         healthRecommendations: healthRecommendations,
       );
     } catch (e) {
-      print('Error parsing air quality response: $e');
+      debugPrint('Error parsing air quality response: $e');
       return null;
     }
   }
@@ -220,7 +221,7 @@ class AirQualityApiService {
             level: _parseHealthAdviceLevel(generalPopulation['level']),
           ));
         } catch (e) {
-          print('Error parsing general population recommendation: $e');
+          debugPrint('Error parsing general population recommendation: $e');
         }
       }
 
@@ -234,7 +235,7 @@ class AirQualityApiService {
             level: _parseHealthAdviceLevel(elderly['level']),
           ));
         } catch (e) {
-          print('Error parsing elderly recommendation: $e');
+          debugPrint('Error parsing elderly recommendation: $e');
         }
       }
 
@@ -309,7 +310,7 @@ class AirQualityApiService {
       }
 
     } catch (e) {
-      print('Error parsing health recommendations: $e');
+      debugPrint('Error parsing health recommendations: $e');
     }
 
     return recommendations;
@@ -401,12 +402,12 @@ class AirQualityApiService {
         final data = jsonDecode(response.body);
         return _parseHistoricalAirQualityResponse(data, latitude, longitude, locationName);
       } else {
-        print('Error fetching historical air quality data: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        debugPrint('Error fetching historical air quality data: ${response.statusCode}');
+        debugPrint('Response body: ${response.body}');
         return null;
       }
     } catch (e) {
-      print('Exception fetching historical air quality data: $e');
+      debugPrint('Exception fetching historical air quality data: $e');
       return null;
     }
   }

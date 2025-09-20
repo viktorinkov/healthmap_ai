@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../models/user_health_profile.dart';
 import '../models/air_quality.dart';
@@ -18,7 +19,7 @@ class GeminiService {
           );
         }
       } catch (e) {
-        print('Failed to initialize Gemini model: $e');
+        debugPrint('Failed to initialize Gemini model: $e');
       }
     }
     return _model;
@@ -49,7 +50,7 @@ class GeminiService {
         return ['Unable to generate personalized recommendations at this time.'];
       }
     } catch (e) {
-      print('Error generating Gemini recommendations: $e');
+      debugPrint('Error generating Gemini recommendations: $e');
       return ['Unable to generate personalized recommendations at this time.'];
     }
   }
@@ -214,7 +215,7 @@ Provide a 1-2 sentence explanation of what this means for residents in simple te
         return [];
       }
     } catch (e) {
-      print('Error generating Gemini daily tasks: $e');
+      debugPrint('Error generating Gemini daily tasks: $e');
       return [];
     }
   }
@@ -285,6 +286,89 @@ Generate personalized daily tasks:
 
     return tasks;
   }
+
+  static Future<Map<String, dynamic>> generateIntelligentAirQualityAssessment({
+    required AirQualityMetrics metrics,
+    String? locationName,
+  }) async {
+    try {
+      final prompt = '''
+You are an expert environmental health scientist specializing in air quality assessment. Analyze the following pollutant measurements and provide an intelligent assessment.
+
+POLLUTANT DATA:
+- PM2.5: ${metrics.pm25.toStringAsFixed(1)} μg/m³ (EPA standard: 35 μg/m³ daily, WHO guideline: 15 μg/m³)
+- PM10: ${metrics.pm10.toStringAsFixed(1)} μg/m³ (EPA standard: 150 μg/m³ daily, WHO guideline: 45 μg/m³)
+- Ozone (O₃): ${metrics.o3.toStringAsFixed(1)} ppb (EPA standard: 70 ppb 8-hour average)
+- Nitrogen Dioxide (NO₂): ${metrics.no2.toStringAsFixed(1)} ppb (EPA standard: 100 ppb 1-hour average)
+- Wildfire Index: ${metrics.wildfireIndex.toStringAsFixed(1)}/100${metrics.co != null ? '\n- Carbon Monoxide (CO): ${metrics.co!.toStringAsFixed(1)} ppb' : ''}${metrics.so2 != null ? '\n- Sulfur Dioxide (SO₂): ${metrics.so2!.toStringAsFixed(1)} ppb' : ''}
+- Radon: ${metrics.radon.toStringAsFixed(1)} pCi/L (EPA action level: 4.0 pCi/L)
+
+TASK:
+Based on these measurements and their health implications, determine:
+1. Overall air quality status: "good", "caution", or "avoid"
+2. One-sentence justification explaining the primary health concern or reason for the assessment
+
+GUIDELINES:
+- Consider cumulative effects of multiple pollutants, not just individual thresholds
+- Account for sensitive populations (children, elderly, respiratory conditions)
+- Factor in wildfire smoke and radon levels
+- Prioritize the most health-threatening pollutant in your justification
+- Use EPA standards and WHO guidelines as references
+- Be specific about which pollutant(s) drive your assessment
+
+RESPONSE FORMAT:
+Status: [good/caution/avoid]
+Justification: [One clear sentence explaining the primary health concern]
+
+Provide your assessment:''';
+
+      if (model == null) {
+        throw Exception('Gemini not configured');
+      }
+
+      final response = await model!.generateContent([Content.text(prompt)]);
+
+      if (response.text != null) {
+        return _parseAirQualityAssessment(response.text!);
+      } else {
+        throw Exception('No assessment available');
+      }
+    } catch (e) {
+      debugPrint('Error generating Gemini air quality assessment: $e');
+      throw Exception('Assessment unavailable');
+    }
+  }
+
+  static Map<String, dynamic> _parseAirQualityAssessment(String response) {
+    final lines = response.split('\n').map((line) => line.trim()).toList();
+
+    String status = 'caution';
+    String justification = 'Air quality requires attention based on current pollutant levels.';
+
+    for (final line in lines) {
+      if (line.toLowerCase().startsWith('status:')) {
+        final statusText = line.substring(7).trim().toLowerCase();
+        if (statusText.contains('good')) {
+          status = 'good';
+        } else if (statusText.contains('avoid')) {
+          status = 'avoid';
+        } else {
+          status = 'caution';
+        }
+      } else if (line.toLowerCase().startsWith('justification:')) {
+        justification = line.substring(13).trim();
+        if (justification.isEmpty) {
+          justification = 'Air quality assessment based on current environmental conditions.';
+        }
+      }
+    }
+
+    return {
+      'status': status,
+      'justification': justification,
+    };
+  }
+
 
   static bool get isConfigured => ApiKeys.hasGeminiKey;
 }

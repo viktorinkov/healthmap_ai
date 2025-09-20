@@ -482,11 +482,10 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
       );
     }
 
-    return UnifiedLocationCard(
-      airQuality: _currentLocationAirQuality,
+    return _buildRecommendationsCard(
+      _currentLocationAirQuality,
       isCurrentLocation: true,
       customTitle: 'Here & Now Risk',
-      onRefresh: _loadData,
     );
   }
 
@@ -495,11 +494,9 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
       final airQuality = _locationAirQuality[location.id];
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
-        child: UnifiedLocationCard(
+        child: _buildRecommendationsCard(
+          airQuality,
           location: location,
-          airQuality: airQuality,
-          showFullDetails: false,
-          onRefresh: _loadData,
         ),
       );
     }).toList();
@@ -558,6 +555,68 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     );
   }
 
+  Widget _buildRecommendationsCard(
+    AirQualityData? airQuality, {
+    PinnedLocation? location,
+    bool isCurrentLocation = false,
+    String? customTitle,
+  }) {
+    if (airQuality == null) {
+      return UnifiedLocationCard(
+        location: location,
+        airQuality: airQuality,
+        isCurrentLocation: isCurrentLocation,
+        customTitle: customTitle,
+        onRefresh: _loadData,
+      );
+    }
+
+    return FutureBuilder<Map<String, dynamic>>(
+      future: GeminiService.generateIntelligentAirQualityAssessment(
+        metrics: airQuality.metrics,
+        locationName: location?.name ?? (isCurrentLocation ? 'Current Location' : 'Location'),
+      ),
+      builder: (context, snapshot) {
+        // Create modified air quality data with Gemini assessment
+        AirQualityData enhancedAirQuality = airQuality;
+
+        if (snapshot.hasData && snapshot.data != null) {
+          final statusString = snapshot.data!['status'] as String;
+          final justification = snapshot.data!['justification'] as String;
+
+          final geminiStatus = AirQualityStatus.values.firstWhere(
+            (s) => s.name == statusString,
+            orElse: () => airQuality.status,
+          );
+
+          // Create new air quality data with Gemini status and justification
+          enhancedAirQuality = airQuality.copyWith(
+            status: geminiStatus,
+            statusReason: justification.isNotEmpty ? justification : airQuality.statusReason,
+          );
+        }
+
+        String? geminiAssessment;
+        if (snapshot.hasData && snapshot.data != null) {
+          geminiAssessment = snapshot.data!['justification'] as String;
+        } else if (snapshot.connectionState == ConnectionState.waiting) {
+          geminiAssessment = 'Getting AI assessment...';
+        } else if (snapshot.hasError) {
+          geminiAssessment = 'AI assessment unavailable';
+        }
+
+        return UnifiedLocationCard(
+          location: location,
+          airQuality: enhancedAirQuality,
+          isCurrentLocation: isCurrentLocation,
+          customTitle: customTitle,
+          showFullDetails: false,
+          onRefresh: _loadData,
+          geminiAssessment: geminiAssessment,
+        );
+      },
+    );
+  }
 
 }
 
