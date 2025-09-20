@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/onboarding/onboarding_flow.dart';
 import 'screens/main/home_screen.dart';
 import 'services/database_service.dart';
+import 'services/api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,9 @@ void main() async {
 
   // Initialize database
   await DatabaseService().database;
+
+  // Initialize API service
+  await ApiService.init();
 
   runApp(const HealthMapApp());
 }
