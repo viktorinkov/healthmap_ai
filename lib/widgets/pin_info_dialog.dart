@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/pinned_location.dart';
 import '../models/air_quality.dart';
-import '../models/environmental_health_scores.dart';
-import '../services/environmental_health_api_service.dart';
-import 'environmental_health_card.dart';
+import '../models/environmental_measurements.dart';
+import '../services/environmental_measurements_service.dart';
+import 'environmental_measurements_card.dart';
 
 class PinInfoDialog extends StatefulWidget {
   final PinnedLocation location;
@@ -20,7 +20,7 @@ class PinInfoDialog extends StatefulWidget {
 }
 
 class _PinInfoDialogState extends State<PinInfoDialog> {
-  EnvironmentalHealthScores? _environmentalScores;
+  EnvironmentalMeasurements? _environmentalMeasurements;
   bool _loadingEnvironmental = false;
 
   @override
@@ -35,7 +35,7 @@ class _PinInfoDialogState extends State<PinInfoDialog> {
     });
 
     try {
-      final scores = await EnvironmentalHealthApiService.getEnvironmentalHealthScores(
+      final measurements = await EnvironmentalMeasurementsService.getEnvironmentalMeasurements(
         locationId: widget.location.id,
         latitude: widget.location.latitude,
         longitude: widget.location.longitude,
@@ -44,7 +44,7 @@ class _PinInfoDialogState extends State<PinInfoDialog> {
 
       if (mounted) {
         setState(() {
-          _environmentalScores = scores;
+          _environmentalMeasurements = measurements;
           _loadingEnvironmental = false;
         });
       }
@@ -145,10 +145,8 @@ class _PinInfoDialogState extends State<PinInfoDialog> {
                 ],
               ),
             )
-          else if (_environmentalScores != null)
-            EnvironmentalHealthCard(scores: _environmentalScores!)
           else
-            _buildNoEnvironmentalData(context),
+            EnvironmentalMeasurementsCard(measurements: _environmentalMeasurements),
         ],
       ),
     );

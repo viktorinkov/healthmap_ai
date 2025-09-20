@@ -1,7 +1,7 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../models/user_health_profile.dart';
 import '../models/air_quality.dart';
-import '../models/environmental_health_scores.dart';
+import '../models/environmental_measurements.dart';
 import 'api_keys.dart';
 
 class GeminiService {
@@ -28,14 +28,14 @@ class GeminiService {
     required UserHealthProfile userProfile,
     required List<AirQualityData> recentAirQuality,
     String location = 'Houston',
-    EnvironmentalHealthScores? environmentalScores,
+    EnvironmentalMeasurements? environmentalMeasurements,
   }) async {
     try {
       final prompt = _buildRecommendationPrompt(
         userProfile: userProfile,
         recentAirQuality: recentAirQuality,
         location: location,
-        environmentalScores: environmentalScores,
+        environmentalMeasurements: environmentalMeasurements,
       );
 
       if (model == null) {
@@ -58,7 +58,7 @@ class GeminiService {
     required UserHealthProfile userProfile,
     required List<AirQualityData> recentAirQuality,
     required String location,
-    EnvironmentalHealthScores? environmentalScores,
+    EnvironmentalMeasurements? environmentalMeasurements,
   }) {
     final currentAQ = recentAirQuality.isNotEmpty ? recentAirQuality.first : null;
 
@@ -84,23 +84,46 @@ ${currentAQ != null ? '''
 - Radon: ${currentAQ.metrics.radon.toStringAsFixed(1)} pCi/L
 ''' : 'No current air quality data available'}
 
-${environmentalScores != null ? '''
-COMPREHENSIVE ENVIRONMENTAL HEALTH ASSESSMENT:
-- Overall Score: ${environmentalScores.overall.score.toStringAsFixed(1)}/100 (${environmentalScores.overall.level.displayName})
-- Air Quality Score: ${environmentalScores.airQuality.score.toStringAsFixed(1)} - ${environmentalScores.airQuality.primaryConcern}
-- Weather Conditions: ${environmentalScores.meteorology.score.toStringAsFixed(1)} - ${environmentalScores.meteorology.primaryConcern}
-- Wildfire Risk: ${environmentalScores.wildfire.score.toStringAsFixed(1)} - ${environmentalScores.wildfire.riskDescription}
-- Pollen Levels: ${environmentalScores.aeroallergens.score.toStringAsFixed(1)} - ${environmentalScores.aeroallergens.dominantAllergen}
-- Indoor Environment: ${environmentalScores.indoorEnvironment.score.toStringAsFixed(1)} - ${environmentalScores.indoorEnvironment.primaryConcern}
-
-ACTIVITY SAFETY:
-- Outdoor Activities: ${environmentalScores.overall.safeForOutdoorActivity ? '✅ Safe' : '❌ Not Recommended'}
-- Exercise/Sports: ${environmentalScores.overall.safeForExercise ? '✅ Safe' : '❌ Not Recommended'}
-- Windows: ${environmentalScores.overall.windowsRecommendation ? '✅ Keep Open' : '❌ Keep Closed'}
-
-SPECIFIC ENVIRONMENTAL CONCERNS:
-${environmentalScores.overall.primaryConcerns.map((concern) => '- $concern').join('\n')}
-''' : 'Comprehensive environmental data not available'}
+${environmentalMeasurements != null ? '''
+ENVIRONMENTAL MEASUREMENTS:
+${environmentalMeasurements.airQuality != null ? '''
+AIR QUALITY MEASUREMENTS (${environmentalMeasurements.airQuality!.measurementSource}):
+- PM2.5: ${environmentalMeasurements.airQuality!.pm25?.toStringAsFixed(1) ?? 'N/A'} μg/m³ (EPA standard: 35 μg/m³)
+- PM10: ${environmentalMeasurements.airQuality!.pm10?.toStringAsFixed(1) ?? 'N/A'} μg/m³ (EPA standard: 150 μg/m³)
+- Ozone: ${environmentalMeasurements.airQuality!.ozone?.toStringAsFixed(1) ?? 'N/A'} ppb (EPA standard: 70 ppb)
+- NO₂: ${environmentalMeasurements.airQuality!.nitrogenDioxide?.toStringAsFixed(1) ?? 'N/A'} ppb (EPA standard: 100 ppb)
+- CO: ${environmentalMeasurements.airQuality!.carbonMonoxide?.toStringAsFixed(1) ?? 'N/A'} ppb
+- SO₂: ${environmentalMeasurements.airQuality!.sulfurDioxide?.toStringAsFixed(1) ?? 'N/A'} ppb
+''' : ''}${environmentalMeasurements.meteorology != null ? '''
+WEATHER CONDITIONS (${environmentalMeasurements.meteorology!.measurementSource}):
+- Temperature: ${environmentalMeasurements.meteorology!.temperatureCelsius?.toStringAsFixed(1) ?? 'N/A'}°C (${environmentalMeasurements.meteorology!.temperatureFahrenheit?.toStringAsFixed(1) ?? 'N/A'}°F)
+- Humidity: ${environmentalMeasurements.meteorology!.relativeHumidityPercent?.toStringAsFixed(0) ?? 'N/A'}%
+- Wind Speed: ${environmentalMeasurements.meteorology!.windSpeedMs?.toStringAsFixed(1) ?? 'N/A'} m/s (${environmentalMeasurements.meteorology!.windSpeedMph?.toStringAsFixed(1) ?? 'N/A'} mph)
+- UV Index: ${environmentalMeasurements.meteorology!.uvIndex?.toString() ?? 'N/A'}
+- Air Stagnation: ${environmentalMeasurements.meteorology!.stagnationEvent ? 'Yes' : 'No'}
+- Pressure: ${environmentalMeasurements.meteorology!.atmosphericPressureHpa?.toStringAsFixed(1) ?? 'N/A'} hPa
+''' : ''}${environmentalMeasurements.aeroallergens != null ? '''
+POLLEN & ALLERGENS (${environmentalMeasurements.aeroallergens!.measurementSource}):
+- Tree Pollen: ${environmentalMeasurements.aeroallergens!.treePollenGrainsPerM3?.toString() ?? 'N/A'} grains/m³
+- Grass Pollen: ${environmentalMeasurements.aeroallergens!.grassPollenGrainsPerM3?.toString() ?? 'N/A'} grains/m³
+- Weed Pollen: ${environmentalMeasurements.aeroallergens!.weedPollenGrainsPerM3?.toString() ?? 'N/A'} grains/m³
+- Mold Spores: ${environmentalMeasurements.aeroallergens!.moldSporesPerM3?.toString() ?? 'N/A'} spores/m³
+- Dominant Types: ${environmentalMeasurements.aeroallergens!.dominantPollenTypes.isNotEmpty ? environmentalMeasurements.aeroallergens!.dominantPollenTypes.join(', ') : 'N/A'}
+''' : ''}${environmentalMeasurements.wildfire != null ? '''
+WILDFIRE ACTIVITY (${environmentalMeasurements.wildfire!.measurementSource}):
+- Active Fires: ${environmentalMeasurements.wildfire!.activeFireCount}
+- Nearest Fire: ${environmentalMeasurements.wildfire!.nearestFireDistanceKm?.toStringAsFixed(1) ?? 'N/A'} km
+- Smoke PM2.5: ${environmentalMeasurements.wildfire!.smokeParticulates?.toStringAsFixed(1) ?? 'N/A'} μg/m³
+- Visibility: ${environmentalMeasurements.wildfire!.visibilityKm?.toStringAsFixed(1) ?? 'N/A'} km
+''' : ''}${environmentalMeasurements.indoorEnvironment != null ? '''
+INDOOR ENVIRONMENT (${environmentalMeasurements.indoorEnvironment!.measurementSource}):
+- Radon: ${environmentalMeasurements.indoorEnvironment!.radonLevelPciL?.toStringAsFixed(1) ?? 'N/A'} pCi/L (EPA action level: 4.0 pCi/L)
+- VOCs: ${environmentalMeasurements.indoorEnvironment!.volatileOrganicCompoundsPpb?.toStringAsFixed(1) ?? 'N/A'} ppb
+- CO (Indoor): ${environmentalMeasurements.indoorEnvironment!.carbonMonoxidePpm?.toStringAsFixed(1) ?? 'N/A'} ppm
+- Mold Spores: ${environmentalMeasurements.indoorEnvironment!.moldSporesPerM3?.toStringAsFixed(0) ?? 'N/A'} spores/m³
+- Formaldehyde: ${environmentalMeasurements.indoorEnvironment!.formaldehydePpb?.toStringAsFixed(1) ?? 'N/A'} ppb
+''' : ''}
+''' : 'Environmental measurements not available'}
 
 INSTRUCTIONS:
 1. Provide 5-8 specific, actionable health recommendations
