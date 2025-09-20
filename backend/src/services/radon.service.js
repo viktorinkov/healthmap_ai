@@ -5,6 +5,9 @@ class RadonService {
   constructor() {
     this.cacheKey = 'radon_zone_data';
     this.cacheTTL = 7 * 24 * 3600; // 7 days cache for static zone data
+    // OpenWeatherMap API key - you'll need to get a free API key from openweathermap.org
+    this.openWeatherApiKey = process.env.OPENWEATHER_API_KEY || 'your_api_key_here';
+    this.openWeatherBaseUrl = 'http://api.openweathermap.org/data/2.5';
   }
 
   // Get radon risk level for a location based on EPA radon zones
@@ -19,8 +22,11 @@ class RadonService {
 
       // Determine radon zone based on coordinates
       const radonRisk = await this.getRadonRiskByLocation(latitude, longitude);
+      
+      // Fetch real environmental data from OpenWeatherMap
+      const environmentalData = await this.getEnvironmentalData(latitude, longitude);
 
-      // Create response data
+      // Create response data combining EPA zone data with real environmental data
       const radonData = {
         location: {
           latitude,
@@ -32,8 +38,9 @@ class RadonService {
         recommendation: radonRisk.recommendation,
         averageRadonLevel: radonRisk.averageLevel,
         unit: 'pCi/L',
-        source: 'EPA Radon Zone Data',
-        timestamp: new Date().toISOString()
+        source: 'EPA Radon Zone Data + Environmental Monitoring',
+        timestamp: new Date().toISOString(),
+        environmental: environmentalData
       };
 
       // Cache the result
@@ -43,8 +50,22 @@ class RadonService {
     } catch (error) {
       console.error('Error fetching radon data:', error);
 
-      // Return fallback data
-      return this.getFallbackRadonData(latitude, longitude);
+      // Return N/A instead of fallback data
+      return {
+        location: {
+          latitude,
+          longitude
+        },
+        radonRisk: 'N/A',
+        radonZone: 'N/A',
+        description: 'N/A',
+        recommendation: 'N/A',
+        averageRadonLevel: 'N/A',
+        unit: 'N/A',
+        source: 'N/A',
+        timestamp: new Date().toISOString(),
+        error: 'Data not available'
+      };
     }
   }
 
@@ -129,14 +150,18 @@ class RadonService {
     // Get state from coordinates (simplified approach)
     const state = await this.getStateFromCoordinates(latitude, longitude);
     const radonZone = stateRadonZones[state] || {
-      zone: 2,
-      level: 'Moderate',
-      averageLevel: 2.5,
-      description: 'Moderate radon potential area (default)'
+      zone: 'N/A',
+      level: 'N/A',
+      averageLevel: 'N/A',
+      description: 'N/A - Location not in database'
     };
 
     // Add recommendations based on zone
-    radonZone.recommendation = this.getRadonRecommendation(radonZone.zone, radonZone.level);
+    if (radonZone.zone !== 'N/A') {
+      radonZone.recommendation = this.getRadonRecommendation(radonZone.zone, radonZone.level);
+    } else {
+      radonZone.recommendation = 'N/A';
+    }
 
     return radonZone;
   }
@@ -226,31 +251,6 @@ class RadonService {
     }
   }
 
-  // Get fallback radon data when API fails
-  getFallbackRadonData(latitude, longitude) {
-    return {
-      location: {
-        latitude,
-        longitude
-      },
-      radonRisk: 'Moderate',
-      radonZone: 2,
-      description: 'Moderate radon potential area (estimated)',
-      recommendation: {
-        action: 'Consider testing your home for radon.',
-        testing: 'Test recommended for all homes',
-        mitigation: 'If levels are 4 pCi/L or higher, consider radon mitigation',
-        urgency: 'Moderate priority for testing',
-        healthRisk: 'Some increased lung cancer risk'
-      },
-      averageRadonLevel: 2.5,
-      unit: 'pCi/L',
-      source: 'Estimated (EPA fallback)',
-      timestamp: new Date().toISOString(),
-      note: 'Data not available - showing estimated values'
-    };
-  }
-
   // Store radon data in history
   async storeRadonHistory(pinId, data) {
     try {
@@ -283,38 +283,33 @@ class RadonService {
         [pinId]
       );
 
-      // If no real data exists, return sample data for demo purposes
+      // If no real data exists, return N/A
       if (history.length === 0) {
-        return this.generateSampleRadonHistory(days, pinId);
+        return [{
+          id: 'N/A',
+          pin_id: pinId,
+          timestamp: new Date().toISOString(),
+          radon_level: 'N/A',
+          zone: 'N/A',
+          risk_level: 'N/A',
+          error: 'No historical data available'
+        }];
       }
 
       return history;
     } catch (error) {
       console.error('Error fetching radon history:', error);
-      // Return sample data as fallback
-      return this.generateSampleRadonHistory(days, pinId);
-    }
-  }
-
-  generateSampleRadonHistory(days = 7, pinId = 'demo') {
-    const sampleData = [];
-    const now = new Date();
-
-    for (let i = 0; i < days; i++) {
-      const timestamp = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
-      const baseRadon = 1.5 + (Math.random() * 2); // Radon between 1.5-3.5 pCi/L (Houston typical range)
-
-      sampleData.push({
-        id: `sample_${i}`,
+      // Return N/A instead of sample data
+      return [{
+        id: 'N/A',
         pin_id: pinId,
-        timestamp: timestamp.toISOString(),
-        radon_level: Math.round(baseRadon * 100) / 100,
-        zone: 3, // Houston is Zone 3 (Low)
-        risk_level: 'Low'
-      });
+        timestamp: new Date().toISOString(),
+        radon_level: 'N/A',
+        zone: 'N/A',
+        risk_level: 'N/A',
+        error: 'Data not available'
+      }];
     }
-
-    return sampleData;
   }
 
   // Cache management

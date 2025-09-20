@@ -25,9 +25,13 @@ class WeatherForecastChart extends StatelessWidget {
         const SizedBox(height: 16),
         _buildWindSpeedForecastChart(context),
         const SizedBox(height: 16),
+        _buildAtmosphericStagnationChart(context),
+        const SizedBox(height: 16),
         _buildPrecipitationForecastChart(context),
         const SizedBox(height: 16),
         _buildUVIndexForecastChart(context),
+        const SizedBox(height: 16),
+        _buildExtremeWeatherAlertsCard(context),
       ],
     );
   }
@@ -551,6 +555,375 @@ class WeatherForecastChart extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAtmosphericStagnationChart(BuildContext context) {
+    final stagnationData = <FlSpot>[];
+    final pressureData = <FlSpot>[];
+    bool hasStagnationEvents = false;
+
+    for (int i = 0; i < forecast.daily.length && i < 7; i++) {
+      final dailyForecast = forecast.daily[i];
+      // Stagnation indicator: 1 if stagnation event, 0 if not
+      final stagnationValue = dailyForecast.stagnationEvent == true ? 1.0 : 0.0;
+      stagnationData.add(FlSpot(i.toDouble(), stagnationValue));
+      
+      // Pressure data (normalized to 0-1 scale for visualization)
+      final normalizedPressure = (dailyForecast.pressure - 980) / 60; // Scale 980-1040 hPa to 0-1
+      pressureData.add(FlSpot(i.toDouble(), normalizedPressure.clamp(0.0, 1.0)));
+      
+      if (dailyForecast.stagnationEvent == true) {
+        hasStagnationEvents = true;
+      }
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.air_outlined, color: Colors.amber),
+                const SizedBox(width: 8),
+                Text(
+                  'Atmospheric Stagnation Risk',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Stagnation events occur when wind speeds are low and pressure is high, leading to poor air quality dispersion.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 180,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: true,
+                    horizontalInterval: 0.2,
+                    verticalInterval: 1,
+                  ),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 30,
+                        interval: 1,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.toInt();
+                          if (index >= 0 && index < forecast.daily.length) {
+                            final date = forecast.daily[index].timestamp;
+                            return SideTitleWidget(
+                              axisSide: meta.axisSide,
+                              child: Text(
+                                '${date.day}/${date.month}',
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            );
+                          }
+                          return const Text('');
+                        },
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        interval: 0.5,
+                        reservedSize: 42,
+                        getTitlesWidget: (value, meta) {
+                          if (value == 0) return const SideTitleWidget(axisSide: AxisSide.left, child: Text('Low', style: TextStyle(fontSize: 10)));
+                          if (value == 0.5) return const SideTitleWidget(axisSide: AxisSide.left, child: Text('Med', style: TextStyle(fontSize: 10)));
+                          if (value == 1) return const SideTitleWidget(axisSide: AxisSide.left, child: Text('High', style: TextStyle(fontSize: 10)));
+                          return const Text('');
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(
+                    show: true,
+                    border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                  ),
+                  minX: 0,
+                  maxX: (forecast.daily.length - 1).toDouble().clamp(0, 6),
+                  minY: 0,
+                  maxY: 1,
+                  lineBarsData: [
+                    // Stagnation events (bar chart style)
+                    LineChartBarData(
+                      spots: stagnationData,
+                      isCurved: false,
+                      color: Colors.red,
+                      barWidth: 4,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: true),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: Colors.red.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    // Pressure trend (line)
+                    LineChartBarData(
+                      spots: pressureData,
+                      isCurved: true,
+                      color: Colors.blue,
+                      barWidth: 2,
+                      isStrokeCapRound: true,
+                      dashArray: [5, 5],
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(show: false),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildLegendItem(context, 'Stagnation Risk', Colors.red),
+                const SizedBox(width: 16),
+                _buildLegendItem(context, 'Pressure Trend', Colors.blue, dashed: true),
+              ],
+            ),
+            if (hasStagnationEvents)
+              _buildAlertBanner(
+                context,
+                Icons.warning,
+                'High stagnation risk detected! Air pollutants may accumulate. Consider reducing outdoor activities.',
+                Colors.red,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExtremeWeatherAlertsCard(BuildContext context) {
+    final alerts = <Widget>[];
+    
+    // Check for heat waves
+    final heatWaveDays = forecast.daily.where((d) => d.heatWaveAlert == true).toList();
+    if (heatWaveDays.isNotEmpty) {
+      alerts.add(_buildWeatherAlert(
+        context,
+        icon: Icons.local_fire_department,
+        title: 'Heat Wave Alert',
+        message: 'Extreme high temperatures expected on ${heatWaveDays.length} day(s). '
+                 'Max temperature: ${heatWaveDays.map((d) => d.maxTemp?.toStringAsFixed(1) ?? d.temperature.toStringAsFixed(1)).join(', ')}°C',
+        color: Colors.red,
+        recommendations: [
+          'Stay hydrated and drink plenty of water',
+          'Avoid prolonged outdoor activities during peak hours',
+          'Seek air-conditioned environments',
+          'Wear light-colored, loose-fitting clothing',
+          'Check on elderly and vulnerable individuals',
+        ],
+      ));
+    }
+
+    // Check for cold waves
+    final coldWaveDays = forecast.daily.where((d) => d.coldWaveAlert == true).toList();
+    if (coldWaveDays.isNotEmpty) {
+      alerts.add(_buildWeatherAlert(
+        context,
+        icon: Icons.ac_unit,
+        title: 'Cold Wave Alert',
+        message: 'Extreme low temperatures expected on ${coldWaveDays.length} day(s). '
+                 'Min temperature: ${coldWaveDays.map((d) => d.minTemp?.toStringAsFixed(1) ?? d.temperature.toStringAsFixed(1)).join(', ')}°C',
+        color: Colors.blue,
+        recommendations: [
+          'Dress in warm layers and cover exposed skin',
+          'Limit time outdoors to prevent frostbite',
+          'Ensure adequate heating in living spaces',
+          'Check heating systems and have backup heating ready',
+          'Watch for signs of hypothermia',
+        ],
+      ));
+    }
+
+    // Check for high humidity
+    final highHumidityDays = forecast.daily.where((d) => d.humidity > 85).toList();
+    if (highHumidityDays.isNotEmpty) {
+      alerts.add(_buildWeatherAlert(
+        context,
+        icon: Icons.water_drop,
+        title: 'High Humidity Alert',
+        message: 'Very high humidity levels expected on ${highHumidityDays.length} day(s). '
+                 'Max humidity: ${highHumidityDays.map((d) => d.humidity.toStringAsFixed(0)).join(', ')}%',
+        color: Colors.orange,
+        recommendations: [
+          'Use dehumidifiers indoors if available',
+          'Avoid strenuous outdoor activities',
+          'Stay in air-conditioned areas when possible',
+          'Monitor for mold growth in humid areas',
+          'Increase ventilation when humidity drops',
+        ],
+      ));
+    }
+
+    // Check for atmospheric stagnation
+    final stagnationDays = forecast.daily.where((d) => d.stagnationEvent == true).toList();
+    if (stagnationDays.isNotEmpty) {
+      alerts.add(_buildWeatherAlert(
+        context,
+        icon: Icons.air_outlined,
+        title: 'Air Stagnation Alert',
+        message: 'Poor air circulation expected on ${stagnationDays.length} day(s). Air pollutants may accumulate.',
+        color: Colors.amber,
+        recommendations: [
+          'Reduce outdoor physical activities',
+          'Keep windows closed during peak pollution hours',
+          'Use air purifiers indoors if available',
+          'Avoid unnecessary driving or burning',
+          'Monitor air quality conditions regularly',
+        ],
+      ));
+    }
+
+    if (alerts.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Weather Conditions',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'No extreme weather alerts for the forecast period. Conditions appear favorable for outdoor activities.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.warning, color: Colors.orange),
+                const SizedBox(width: 8),
+                Text(
+                  'Weather Alerts & Recommendations',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...alerts.map((alert) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: alert,
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeatherAlert(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String message,
+    required Color color,
+    required List<String> recommendations,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Recommendations:',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          ...recommendations.take(3).map((rec) => Padding(
+            padding: const EdgeInsets.only(left: 8, bottom: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('• ', style: TextStyle(color: color)),
+                Expanded(
+                  child: Text(
+                    rec,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          )),
         ],
       ),
     );

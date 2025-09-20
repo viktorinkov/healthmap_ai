@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../models/weather_data.dart';
 import '../models/air_quality.dart';
 import 'api_service.dart';
+import 'google_weather_api_service.dart';
 
 // Temporary models for backward compatibility until Google Weather API is implemented
 class AirQualityForecast {
@@ -47,12 +48,33 @@ class PollenData {
 }
 
 class WeatherApiService {
-  // Get current weather data
+  // Get current weather data - now using Google Weather API
   static Future<WeatherData?> getCurrentWeather(
     double latitude,
     double longitude, {
     String? locationName,
   }) async {
+    // Try Google Weather API first
+    final googleWeatherData = await GoogleWeatherApiService.getCurrentWeather(
+      latitude,
+      longitude,
+      locationName: locationName,
+    );
+
+    if (googleWeatherData != null) {
+      return googleWeatherData;
+    }
+
+    // Fallback to backend API if Google Weather API fails
+    debugPrint('Google Weather API failed, falling back to backend API');
+    return _getCurrentWeatherFromBackend(latitude, longitude);
+  }
+
+  // Fallback method using backend API
+  static Future<WeatherData?> _getCurrentWeatherFromBackend(
+    double latitude,
+    double longitude,
+  ) async {
     try {
       final response = await http.get(
         Uri.parse(
@@ -63,7 +85,7 @@ class WeatherApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        debugPrint('Weather API Response received');
+        debugPrint('Backend Weather API Response received');
 
         // Backend returns data directly, not nested in 'weather'
         return WeatherData(
@@ -90,21 +112,44 @@ class WeatherApiService {
         );
       }
 
-      debugPrint('Failed to fetch weather data: ${response.statusCode}');
+      debugPrint('Failed to fetch weather data from backend: ${response.statusCode}');
       return null;
     } catch (e) {
-      debugPrint('Error fetching weather data: $e');
+      debugPrint('Error fetching weather data from backend: $e');
       return null;
     }
   }
 
-  // Get weather forecast
+  // Get weather forecast - now using Google Weather API
   static Future<WeatherForecast?> getWeatherForecast(
     double latitude,
     double longitude, {
     String? locationName,
-    int days = 5,
+    int days = 10,
   }) async {
+    // Try Google Weather API first
+    final googleForecastData = await GoogleWeatherApiService.getWeatherForecast(
+      latitude,
+      longitude,
+      locationName: locationName,
+      days: days,
+    );
+
+    if (googleForecastData != null) {
+      return googleForecastData;
+    }
+
+    // Fallback to backend API if Google Weather API fails
+    debugPrint('Google Weather API forecast failed, falling back to backend API');
+    return _getWeatherForecastFromBackend(latitude, longitude, days);
+  }
+
+  // Fallback method using backend API
+  static Future<WeatherForecast?> _getWeatherForecastFromBackend(
+    double latitude,
+    double longitude,
+    int days,
+  ) async {
     try {
       final response = await http.get(
         Uri.parse(
