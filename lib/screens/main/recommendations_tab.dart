@@ -447,6 +447,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
+      color: Theme.of(context).colorScheme.secondaryContainer,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -456,7 +457,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
               children: [
                 Icon(
                   Icons.location_on,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: Theme.of(context).colorScheme.secondary,
                   size: 24,
                 ),
                 const SizedBox(width: 8),
@@ -468,12 +469,13 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
                         'Here & Now Risk',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSecondaryContainer,
                         ),
                       ),
                       Text(
                         'Current location air quality',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                          color: Theme.of(context).colorScheme.onSecondaryContainer.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -606,21 +608,28 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainer,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
-          const Icon(Icons.air, size: 20),
+          Icon(
+            Icons.air,
+            size: 20,
+            color: Theme.of(context).colorScheme.secondary,
+          ),
           const SizedBox(width: 8),
           Text(
             'Universal AQI: ',
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
           Text(
             aqi.toString(),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.secondary,
             ),
           ),
         ],
@@ -645,6 +654,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
           'Pollutants',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
           ),
         ),
         const SizedBox(height: 8),
@@ -661,12 +671,17 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.2),
+        ),
       ),
       child: Text(
         '${pollutant.name}: ${pollutant.value.toStringAsFixed(1)} ${pollutant.unit}',
-        style: Theme.of(context).textTheme.bodySmall,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
       ),
     );
   }
@@ -684,6 +699,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
           'Health Recommendations',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onSecondaryContainer,
           ),
         ),
         const SizedBox(height: 8),
@@ -753,8 +769,8 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: color.withValues(alpha: 0.25),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -766,7 +782,7 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
             child: Text(
               tag.recommendation,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: color.withValues(alpha: 0.8),
+                color: Theme.of(context).colorScheme.onSecondaryContainer,
               ),
             ),
           ),
