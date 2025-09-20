@@ -13,11 +13,7 @@ class ApiKeys {
 
   static String get geminiApiKey {
     final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-    if (apiKey.isEmpty) {
-      throw Exception(
-        'Gemini API key not found. Please add GEMINI_API_KEY to your .env file'
-      );
-    }
+    // Don't throw exception, just return empty string if not configured
     return apiKey;
   }
 

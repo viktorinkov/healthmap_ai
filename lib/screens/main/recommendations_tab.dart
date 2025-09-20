@@ -3,6 +3,7 @@ import '../../models/user_health_profile.dart';
 import '../../models/air_quality.dart';
 import '../../services/database_service.dart';
 import '../../services/fake_data_service.dart';
+import '../../services/gemini_service.dart';
 
 class RecommendationsTab extends StatefulWidget {
   const RecommendationsTab({Key? key}) : super(key: key);
@@ -69,19 +70,22 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     });
 
     try {
-      // For now, use predefined recommendations based on air quality and user profile
-      // In a real app, you'd use the Gemini API here
-      _recommendations = _generateBasicRecommendations();
-
-      // TODO: Implement actual Gemini API call
-      // final model = GenerativeModel(model: 'gemini-pro', apiKey: 'your-api-key');
-      // final prompt = _buildGeminiPrompt();
-      // final response = await model.generateContent([Content.text(prompt)]);
-      // _recommendations = _parseGeminiResponse(response.text);
-
+      // Try to use Gemini AI first, fallback to basic recommendations
+      if (GeminiService.isConfigured) {
+        _recommendations = await GeminiService.generateHealthRecommendations(
+          userProfile: _userProfile!,
+          recentAirQuality: _recentAirQuality,
+          location: 'Houston',
+        );
+      } else {
+        // Fallback to basic recommendations if no API key
+        _recommendations = _generateBasicRecommendations();
+        _recommendations.insert(0, '💡 Add Gemini API key to .env for AI-powered recommendations');
+      }
     } catch (e) {
       debugPrint('Error generating recommendations: $e');
-      _recommendations = ['Unable to generate personalized recommendations at this time.'];
+      _recommendations = _generateBasicRecommendations();
+      _recommendations.insert(0, '⚠️ Using basic recommendations (Gemini API unavailable)');
     }
 
     setState(() {
