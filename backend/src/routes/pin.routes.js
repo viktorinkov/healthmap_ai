@@ -5,6 +5,7 @@ const { authMiddleware } = require('../middleware/auth.middleware');
 const airQualityService = require('../services/airQuality.service');
 const weatherService = require('../services/weather.service');
 const pollenService = require('../services/pollen.service');
+const radonService = require('../services/radon.service');
 
 const router = express.Router();
 
@@ -21,10 +22,11 @@ router.get('/', authMiddleware, async (req, res, next) => {
       const pinsWithData = await Promise.all(
         pins.map(async (pin) => {
           try {
-            const [airQuality, weather, pollen] = await Promise.all([
+            const [airQuality, weather, pollen, radon] = await Promise.all([
               airQualityService.getCurrentAirQuality(pin.latitude, pin.longitude).catch(() => null),
               weatherService.getCurrentWeather(pin.latitude, pin.longitude).catch(() => null),
-              pollenService.getCurrentPollen(pin.latitude, pin.longitude).catch(() => null)
+              pollenService.getCurrentPollen(pin.latitude, pin.longitude).catch(() => null),
+              radonService.getRadonData(pin.latitude, pin.longitude).catch(() => null)
             ]);
 
             return {
@@ -32,7 +34,8 @@ router.get('/', authMiddleware, async (req, res, next) => {
               currentData: {
                 airQuality,
                 weather,
-                pollen
+                pollen,
+                radon
               }
             };
           } catch (error) {

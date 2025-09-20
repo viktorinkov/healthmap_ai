@@ -43,13 +43,6 @@ class SummaryScreen extends StatelessWidget {
                     ),
                     _buildSummaryCard(
                       context,
-                      'Sensitivity Level',
-                      '${data.sensitivityLevel}/5 - ${_getSensitivityLabel(data.sensitivityLevel)}',
-                      Icons.tune,
-                      Colors.orange,
-                    ),
-                    _buildSummaryCard(
-                      context,
                       'Health Conditions',
                       data.conditions.isEmpty
                           ? 'None selected'
@@ -165,7 +158,6 @@ class SummaryScreen extends StatelessWidget {
       conditions: data.conditions,
       ageGroup: data.ageGroup ?? AgeGroup.adult,
       isPregnant: data.isPregnant,
-      sensitivityLevel: data.sensitivityLevel,
       lifestyleRisks: data.lifestyleRisks,
       domesticRisks: data.domesticRisks,
       lastUpdated: DateTime.now(),
@@ -215,16 +207,6 @@ class SummaryScreen extends StatelessWidget {
     );
   }
 
-  String _getSensitivityLabel(int level) {
-    switch (level) {
-      case 1: return 'Low';
-      case 2: return 'Mild';
-      case 3: return 'Moderate';
-      case 4: return 'High';
-      case 5: return 'Very High';
-      default: return 'Moderate';
-    }
-  }
 
   String _getLifestyleRiskName(LifestyleRisk risk) {
     switch (risk) {

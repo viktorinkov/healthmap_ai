@@ -263,7 +263,7 @@ class _PinnedLocationSheetState extends State<PinnedLocationSheet> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(16),
         ),
         child: const Center(
@@ -301,6 +301,7 @@ class _PinnedLocationSheetState extends State<PinnedLocationSheet> {
     final airQuality = _environmentalData['airQuality'] as Map<String, dynamic>?;
     final wildfire = _environmentalData['wildfire'] as Map<String, dynamic>?;
     final pollen = _environmentalData['pollen'] as Map<String, dynamic>?;
+    final radon = _environmentalData['radon'] as Map<String, dynamic>?;
 
     // Count active alerts
     int alertCount = 0;
@@ -399,10 +400,10 @@ class _PinnedLocationSheetState extends State<PinnedLocationSheet> {
               const SizedBox(width: 8),
               _buildQuickStat(
                 context,
-                'Fire',
-                wildfire?['riskLevel'] ?? 'N/A',
-                Icons.local_fire_department,
-                _getFireColor(wildfire?['riskLevel']),
+                'Radon',
+                radon?['radonRisk'] ?? 'N/A',
+                Icons.home_outlined,
+                _getRadonColor(radon?['radonRisk']),
               ),
             ],
           ),
@@ -527,6 +528,20 @@ class _PinnedLocationSheetState extends State<PinnedLocationSheet> {
     }
   }
 
+  Color _getRadonColor(String? risk) {
+    if (risk == null) return Colors.grey;
+    switch (risk) {
+      case 'Low':
+        return Colors.green;
+      case 'Moderate':
+        return Colors.yellow[700]!;
+      case 'High':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
   Widget _buildInfoCard(BuildContext context, {
     required IconData icon,
     required String title,
@@ -537,7 +552,7 @@ class _PinnedLocationSheetState extends State<PinnedLocationSheet> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(

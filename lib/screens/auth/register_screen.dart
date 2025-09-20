@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
-import '../main/home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -10,7 +9,6 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -24,7 +22,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleRegister() async {
-
     setState(() => _isLoading = true);
 
     try {
@@ -41,10 +38,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         );
 
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (route) => false,
-        );
+        Navigator.of(context).pushReplacementNamed('/onboarding');
       }
     } catch (e) {
       if (mounted) {
@@ -96,9 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
-              Form(
-                key: _formKey,
-                child: Column(
+              Column(
                   children: [
                     TextFormField(
                       controller: _usernameController,
@@ -138,7 +130,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ],
                 ),
-              ),
               const SizedBox(height: 32),
               FilledButton(
                 onPressed: _isLoading ? null : _handleRegister,

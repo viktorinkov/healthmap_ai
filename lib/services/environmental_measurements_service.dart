@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/environmental_measurements.dart';
 import 'api_keys.dart';
+import 'api_service.dart';
 
 class EnvironmentalMeasurementsService {
   static const String _openWeatherBaseUrl = 'https://api.openweathermap.org/data/3.0/onecall';
@@ -16,7 +17,21 @@ class EnvironmentalMeasurementsService {
     String? locationName,
   }) async {
     try {
-      // Get all environmental data in parallel
+      // First try to get data from our backend API which includes radon
+      try {
+        final backendData = await ApiService.getAllEnvironmentalData(
+          latitude: latitude,
+          longitude: longitude,
+        );
+
+        if (backendData.isNotEmpty) {
+          return _parseBackendEnvironmentalData(backendData, locationId);
+        }
+      } catch (e) {
+        print('Backend API unavailable, falling back to direct APIs: $e');
+      }
+
+      // Fallback to direct API calls if backend is unavailable
       final futures = await Future.wait([
         _getWeatherMeasurements(latitude, longitude),
         _getPollenMeasurements(latitude, longitude),
@@ -339,5 +354,108 @@ class EnvironmentalMeasurementsService {
         cos(lat1 * pi / 180) * cos(lat2 * pi / 180) * sin(dLon / 2) * sin(dLon / 2);
     final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
     return earthRadius * c;
+  }
+
+  // Parse environmental data from our backend API
+  static EnvironmentalMeasurements _parseBackendEnvironmentalData(
+    Map<String, dynamic> data,
+    String locationId,
+  ) {
+    // Parse air quality data
+    AirQualityMeasurements? airQuality;
+    if (data['airQuality'] != null && data['airQuality'] is Map) {
+      final aq = data['airQuality'] as Map<String, dynamic>;
+      if (!aq.containsKey('error')) {
+        airQuality = AirQualityMeasurements(
+          pm25: aq['pm25']?.toDouble(),
+          pm10: aq['pm10']?.toDouble(),
+          ozone: aq['o3']?.toDouble(),
+          nitrogenDioxide: aq['no2']?.toDouble(),
+          carbonMonoxide: aq['co']?.toDouble(),
+          sulfurDioxide: aq['so2']?.toDouble(),
+          measurementSource: 'HealthMap AI Backend',
+        );
+      }
+    }
+
+    // Parse weather data
+    MeteorologicalMeasurements? weather;
+    if (data['weather'] != null && data['weather'] is Map) {
+      final w = data['weather'] as Map<String, dynamic>;
+      if (!w.containsKey('error')) {
+        weather = MeteorologicalMeasurements(
+          temperatureCelsius: w['temperature']?.toDouble(),
+          temperatureFahrenheit: w['temperature'] != null
+            ? (w['temperature'].toDouble() * 9/5) + 32
+            : null,
+          relativeHumidityPercent: w['humidity']?.toDouble(),
+          windSpeedMs: w['windSpeed']?.toDouble(),
+          windSpeedMph: w['windSpeed'] != null
+            ? w['windSpeed'].toDouble() * 2.237
+            : null,
+          uvIndex: null, // Not provided by our backend yet
+          atmosphericPressureHpa: w['pressure']?.toDouble(),
+          stagnationEvent: w['windSpeed'] != null ? w['windSpeed'].toDouble() < 2.0 : false,
+          measurementSource: 'HealthMap AI Backend',
+        );
+      }
+    }
+
+    // Parse pollen data
+    AeroallergenMeasurements? pollen;
+    if (data['pollen'] != null && data['pollen'] is Map) {
+      final p = data['pollen'] as Map<String, dynamic>;
+      if (!p.containsKey('error')) {
+        pollen = AeroallergenMeasurements(
+          treePollenGrainsPerM3: p['treePollen'],
+          grassPollenGrainsPerM3: p['grassPollen'],
+          weedPollenGrainsPerM3: p['weedPollen'],
+          moldSporesPerM3: null,
+          dominantPollenTypes: [],
+          measurementSource: 'HealthMap AI Backend',
+        );
+      }
+    }
+
+    // Parse wildfire data
+    WildfireMeasurements? wildfire;
+    if (data['wildfire'] != null && data['wildfire'] is Map) {
+      final wf = data['wildfire'] as Map<String, dynamic>;
+      if (!wf.containsKey('error')) {
+        wildfire = WildfireMeasurements(
+          smokeParticulates: wf['smokeImpact'] != null ? 25.0 : null, // Estimated based on smoke impact
+          visibilityKm: null,
+          activeFireCount: wf['nearbyFires'] ?? 0,
+          nearestFireDistanceKm: wf['closestFireDistance']?.toDouble(),
+          measurementSource: 'HealthMap AI Backend',
+        );
+      }
+    }
+
+    // Parse radon data (NEW!)
+    IndoorEnvironmentMeasurements? indoorEnvironment;
+    if (data['radon'] != null && data['radon'] is Map) {
+      final r = data['radon'] as Map<String, dynamic>;
+      if (!r.containsKey('error')) {
+        indoorEnvironment = IndoorEnvironmentMeasurements(
+          radonLevelPciL: r['averageRadonLevel']?.toDouble(),
+          volatileOrganicCompoundsPpb: null,
+          carbonMonoxidePpm: null,
+          moldSporesPerM3: null,
+          formaldehydePpb: null,
+          measurementSource: 'EPA Radon Zone Data',
+        );
+      }
+    }
+
+    return EnvironmentalMeasurements(
+      locationId: locationId,
+      timestamp: DateTime.now(),
+      airQuality: airQuality,
+      indoorEnvironment: indoorEnvironment,
+      aeroallergens: pollen,
+      meteorology: weather,
+      wildfire: wildfire,
+    );
   }
 }

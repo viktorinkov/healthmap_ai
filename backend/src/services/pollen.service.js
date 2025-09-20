@@ -51,13 +51,8 @@ class PollenService {
         return fallback;
       }
 
-      // Return default data if no API access
+      // Return only error message - no fake data
       return {
-        treePollen: 0,
-        grassPollen: 0,
-        weedPollen: 0,
-        overallRisk: 'Low',
-        timestamp: new Date().toISOString(),
         error: 'Pollen data unavailable'
       };
     }
@@ -94,19 +89,8 @@ class PollenService {
     } catch (error) {
       console.error('Error fetching pollen forecast:', error);
 
-      // Return default forecast
+      // Return only error message - no fake forecast data
       return {
-        daily: Array(days).fill(null).map((_, index) => {
-          const date = new Date();
-          date.setDate(date.getDate() + index);
-          return {
-            date: date.toISOString().split('T')[0],
-            treePollen: 0,
-            grassPollen: 0,
-            weedPollen: 0,
-            overallRisk: 'Low'
-          };
-        }),
         error: 'Pollen forecast unavailable'
       };
     }
@@ -116,11 +100,7 @@ class PollenService {
   transformPollenData(data) {
     if (!data.dailyInfo || data.dailyInfo.length === 0) {
       return {
-        treePollen: 0,
-        grassPollen: 0,
-        weedPollen: 0,
-        overallRisk: 'Low',
-        timestamp: new Date().toISOString()
+        error: 'No pollen data available in API response'
       };
     }
 
@@ -159,8 +139,10 @@ class PollenService {
 
   // Transform pollen forecast data
   transformPollenForecast(data) {
-    if (!data.dailyInfo) {
-      return { daily: [] };
+    if (!data.dailyInfo || data.dailyInfo.length === 0) {
+      return {
+        error: 'No pollen forecast data available in API response'
+      };
     }
 
     const daily = data.dailyInfo.map(day => {

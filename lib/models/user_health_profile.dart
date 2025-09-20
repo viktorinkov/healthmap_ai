@@ -8,7 +8,6 @@ class UserHealthProfile {
   final List<HealthCondition> conditions;
   final AgeGroup ageGroup;
   final bool isPregnant;
-  final int sensitivityLevel; // 1-5, higher = more sensitive
   final List<LifestyleRisk> lifestyleRisks;
   final List<DomesticRisk> domesticRisks;
   final DateTime lastUpdated;
@@ -18,7 +17,6 @@ class UserHealthProfile {
     required this.conditions,
     required this.ageGroup,
     this.isPregnant = false,
-    this.sensitivityLevel = 3,
     this.lifestyleRisks = const [],
     this.domesticRisks = const [],
     required this.lastUpdated,
@@ -61,8 +59,6 @@ class UserHealthProfile {
       }
     }
 
-    // Sensitivity level adjustment
-    multiplier += (sensitivityLevel - 3) * 0.1;
 
     return multiplier.clamp(1.0, 3.0);
   }

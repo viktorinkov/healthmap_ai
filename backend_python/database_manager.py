@@ -44,13 +44,16 @@ class DatabaseManager:
     
     def insert_heart_rate_data(self, df: pd.DataFrame, user_id: str):
         """Bulk insert heart rate data"""
+        df = df.copy()
         df['user_id'] = user_id
+        # Convert datetime to string format for PostgreSQL
+        df['datetime'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
         records = df[['user_id', 'datetime', 'heart_rate']].to_records(index=False)
-        
+
         with self.connection.cursor() as cursor:
             execute_values(
                 cursor,
-                """INSERT INTO heart_rate_data (user_id, datetime, heart_rate) 
+                """INSERT INTO heart_rate_data (user_id, datetime, heart_rate)
                    VALUES %s ON CONFLICT DO NOTHING""",
                 records.tolist()
             )
@@ -58,13 +61,16 @@ class DatabaseManager:
     
     def insert_activity_data(self, df: pd.DataFrame, user_id: str):
         """Bulk insert activity data"""
+        df = df.copy()
         df['user_id'] = user_id
+        # Convert datetime to string format for PostgreSQL
+        df['datetime'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
         records = df[['user_id', 'datetime', 'steps', 'distance', 'calories']].to_records(index=False)
-        
+
         with self.connection.cursor() as cursor:
             execute_values(
                 cursor,
-                """INSERT INTO activity_data (user_id, datetime, steps, distance, calories) 
+                """INSERT INTO activity_data (user_id, datetime, steps, distance, calories)
                    VALUES %s ON CONFLICT DO NOTHING""",
                 records.tolist()
             )
@@ -72,7 +78,10 @@ class DatabaseManager:
     
     def insert_spo2_data(self, df: pd.DataFrame, user_id: str):
         """Bulk insert SpO2 data"""
+        df = df.copy()
         df['user_id'] = user_id
+        # Convert datetime to string format for PostgreSQL
+        df['datetime'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
         records = df[['user_id', 'datetime', 'spo2']].to_records(index=False)
         
         with self.connection.cursor() as cursor:
@@ -86,7 +95,10 @@ class DatabaseManager:
     
     def insert_hrv_data(self, df: pd.DataFrame, user_id: str):
         """Bulk insert HRV data"""
+        df = df.copy()
         df['user_id'] = user_id
+        # Convert datetime to string format for PostgreSQL
+        df['datetime'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
         records = df[['user_id', 'datetime', 'rmssd', 'lf', 'hf']].to_records(index=False)
         
         with self.connection.cursor() as cursor:
@@ -100,8 +112,11 @@ class DatabaseManager:
     
     def insert_breathing_rate_data(self, df: pd.DataFrame, user_id: str):
         """Bulk insert breathing rate data"""
+        df = df.copy()
         df['user_id'] = user_id
-        records = df[['user_id', 'date', 'deep_sleep_br', 'rem_sleep_br', 
+        # Convert date to string format for PostgreSQL
+        df['date'] = df['date'].astype(str)
+        records = df[['user_id', 'date', 'deep_sleep_br', 'rem_sleep_br',
                      'light_sleep_br', 'full_sleep_br']].to_records(index=False)
         
         with self.connection.cursor() as cursor:

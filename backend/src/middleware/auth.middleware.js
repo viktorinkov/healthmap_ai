@@ -22,7 +22,7 @@ async function authMiddleware(req, res, next) {
     }
 
     const user = await getOne(
-      'SELECT id, email, name FROM users WHERE id = ?',
+      'SELECT id, username FROM users WHERE id = ?',
       [decoded.userId]
     );
 
@@ -56,7 +56,7 @@ async function optionalAuth(req, res, next) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await getOne(
-      'SELECT id, email, name FROM users WHERE id = ?',
+      'SELECT id, username FROM users WHERE id = ?',
       [decoded.userId]
     );
 

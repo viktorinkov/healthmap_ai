@@ -11,7 +11,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -35,9 +34,16 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result['token'] != null && mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+        final user = result['user'];
+        final onboardingCompleted = user?['onboarding_completed'] ?? false;
+
+        if (onboardingCompleted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        } else {
+          Navigator.of(context).pushReplacementNamed('/onboarding');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -92,9 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 48),
-                Form(
-                  key: _formKey,
-                  child: Column(
+                Column(
                     children: [
                       TextFormField(
                         controller: _usernameController,
@@ -132,7 +136,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ],
-                  ),
                 ),
                 const SizedBox(height: 24),
                 FilledButton(

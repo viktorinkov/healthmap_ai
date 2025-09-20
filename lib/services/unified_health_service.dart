@@ -138,7 +138,6 @@ class UnifiedHealthService {
       'health_conditions': profile.conditions.map((c) => c.name).toList(),
       'age_group': profile.ageGroup.name,
       'is_pregnant': profile.isPregnant,
-      'sensitivity_level': profile.sensitivityLevel,
       'lifestyle_risks': profile.lifestyleRisks.map((r) => r.name).toList(),
       'domestic_risks': profile.domesticRisks.map((r) => r.name).toList(),
     };

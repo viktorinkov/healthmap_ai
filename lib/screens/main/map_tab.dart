@@ -7,6 +7,7 @@ import '../../models/pinned_location.dart';
 import '../../models/air_quality.dart';
 import '../../services/air_quality_api_service.dart';
 import '../../services/database_service.dart';
+import '../../services/unified_air_quality_service.dart';
 import '../../widgets/add_location_dialog.dart';
 import '../../widgets/pin_info_dialog.dart';
 
@@ -34,27 +35,59 @@ class _MapTabState extends State<MapTab> {
   }
 
   Future<void> _initializeData() async {
+    // Set a maximum timeout for initialization
     try {
-      // Get current location
-      await _getCurrentLocation();
-
-      // Load pinned locations
-      _pinnedLocations = await DatabaseService().getPinnedLocations();
-
-      // Load air quality data for pinned locations
-      await _loadAirQualityForLocations();
-
-      // Create markers and heatmap overlay
-      _createMarkersAndOverlays();
-
-      setState(() {
-        _isLoading = false;
-      });
+      await Future.any([
+        _doInitializeData(),
+        Future.delayed(const Duration(seconds: 10)), // 10 second timeout
+      ]);
     } catch (e) {
-      debugPrint('Error initializing map data: $e');
+      debugPrint('Initialization timeout or error: $e');
+    }
+
+    // Ensure map is shown regardless of what happens
+    if (mounted) {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _doInitializeData() async {
+    try {
+      // Get current location (critical for map display)
+      await _getCurrentLocation().timeout(const Duration(seconds: 5));
+
+      // Load pinned locations (non-critical)
+      try {
+        _pinnedLocations = await DatabaseService().getPinnedLocations().timeout(const Duration(seconds: 3));
+      } catch (e) {
+        debugPrint('Error loading pinned locations: $e');
+        _pinnedLocations = []; // Continue with empty list
+      }
+
+      // Load air quality data for pinned locations (non-critical)
+      if (_pinnedLocations.isNotEmpty) {
+        try {
+          await _loadAirQualityForLocations().timeout(const Duration(seconds: 5));
+        } catch (e) {
+          debugPrint('Error loading air quality data: $e');
+          _locationAirQuality = {}; // Continue with empty map
+        }
+      } else {
+        _locationAirQuality = {}; // No pins, no data needed
+      }
+
+      // Create markers and heatmap overlay (non-critical)
+      try {
+        _createMarkersAndOverlays();
+      } catch (e) {
+        debugPrint('Error creating markers and overlays: $e');
+        _markers = {};
+        _tileOverlays = {};
+      }
+    } catch (e) {
+      debugPrint('Error in data initialization: $e');
     }
   }
 
@@ -84,119 +117,12 @@ class _MapTabState extends State<MapTab> {
   }
 
   Future<void> _loadAirQualityForLocations() async {
-    _locationAirQuality.clear();
-
-    // Load air quality for each pinned location
-    for (final location in _pinnedLocations) {
-      // Try to find existing air quality data for this specific location
-      final existingData = await DatabaseService().getAirQualityData();
-      final locationSpecificData = existingData.where((data) =>
-        data.locationName.toLowerCase().contains(location.name.toLowerCase()) ||
-        (data.latitude - location.latitude).abs() < 0.01 &&
-        (data.longitude - location.longitude).abs() < 0.01
-      ).toList();
-
-      if (locationSpecificData.isNotEmpty) {
-        _locationAirQuality[location.id] = locationSpecificData.first;
-      } else {
-        // Generate sample air quality data for this location
-        _locationAirQuality[location.id] = _generateSampleAirQualityData(location);
-        // Save to database for future use
-        await DatabaseService().saveAirQualityData(_locationAirQuality[location.id]!);
-      }
-    }
-  }
-
-  AirQualityData _generateSampleAirQualityData(PinnedLocation location) {
-    // Generate realistic but varied air quality data based on location type and coordinates
-    final random = DateTime.now().millisecond + location.hashCode;
-    final baseVariation = (random % 100) / 100.0; // 0.0 to 1.0
-
-    // Different base values based on location type
-    Map<String, double> baseValues;
-    switch (location.type) {
-      case LocationType.home:
-        baseValues = {'pm25': 8.0, 'pm10': 18.0, 'o3': 35.0, 'no2': 18.0};
-        break;
-      case LocationType.work:
-        baseValues = {'pm25': 15.0, 'pm10': 30.0, 'o3': 50.0, 'no2': 30.0};
-        break;
-      case LocationType.gym:
-        baseValues = {'pm25': 12.0, 'pm10': 25.0, 'o3': 45.0, 'no2': 25.0};
-        break;
-      case LocationType.school:
-        baseValues = {'pm25': 10.0, 'pm10': 22.0, 'o3': 40.0, 'no2': 22.0};
-        break;
-      case LocationType.other:
-      default:
-        baseValues = {'pm25': 13.0, 'pm10': 27.0, 'o3': 47.0, 'no2': 27.0};
-        break;
-    }
-
-    // Add variation based on location coordinates (simulate geographic differences)
-    final latVariation = (location.latitude % 1) * 0.3; // 0.0 to 0.3
-    final lngVariation = (location.longitude.abs() % 1) * 0.2; // 0.0 to 0.2
-
-    final pm25 = (baseValues['pm25']! * (1 + (baseVariation - 0.5) * 0.4 + latVariation)).clamp(5.0, 35.0);
-    final pm10 = (baseValues['pm10']! * (1 + (baseVariation - 0.5) * 0.4 + lngVariation)).clamp(10.0, 60.0);
-    final o3 = (baseValues['o3']! * (1 + (baseVariation - 0.5) * 0.3 + latVariation)).clamp(20.0, 80.0);
-    final no2 = (baseValues['no2']! * (1 + (baseVariation - 0.5) * 0.4 + lngVariation)).clamp(10.0, 50.0);
-
-    // Optional pollutants with some variation
-    final co = random % 3 == 0 ? (200 + (baseVariation * 300)).clamp(100.0, 800.0) : null;
-    final so2 = random % 4 == 0 ? (5 + (baseVariation * 15)).clamp(2.0, 25.0) : null;
-
-    final metrics = AirQualityMetrics(
-      pm25: pm25,
-      pm10: pm10,
-      o3: o3,
-      no2: no2,
-      co: co,
-      so2: so2,
-      wildfireIndex: (baseVariation * 30).clamp(0.0, 40.0),
-      radon: (1.5 + baseVariation * 2).clamp(1.0, 4.0),
-      universalAqi: null, // Will be calculated
-    );
-
-    final status = AirQualityStatusExtension.fromScore(metrics.overallScore);
-
-    return AirQualityData(
-      id: '${location.id}_${DateTime.now().millisecondsSinceEpoch}',
-      locationName: location.name,
-      latitude: location.latitude,
-      longitude: location.longitude,
-      timestamp: DateTime.now().subtract(Duration(minutes: random % 120)),
-      metrics: metrics,
-      status: status,
-      statusReason: _generateStatusReason(metrics, status),
+    _locationAirQuality = await UnifiedAirQualityService.getAirQualityForAllLocations(
+      _pinnedLocations,
     );
   }
 
-  String _generateStatusReason(AirQualityMetrics metrics, AirQualityStatus status) {
-    final concerns = <String>[];
 
-    if (metrics.pm25 > 15) concerns.add('elevated PM2.5');
-    if (metrics.pm10 > 30) concerns.add('elevated PM10');
-    if (metrics.o3 > 50) concerns.add('high ozone');
-    if (metrics.no2 > 30) concerns.add('elevated NO₂');
-    if (metrics.co != null && metrics.co! > 500) concerns.add('carbon monoxide');
-    if (metrics.so2 != null && metrics.so2! > 15) concerns.add('sulfur dioxide');
-
-    switch (status) {
-      case AirQualityStatus.good:
-        return concerns.isEmpty
-          ? 'All air quality metrics are within healthy ranges'
-          : 'Generally good air quality with minor ${concerns.first} levels';
-      case AirQualityStatus.caution:
-        return concerns.isEmpty
-          ? 'Moderate air quality - sensitive individuals should be cautious'
-          : 'Moderate air quality due to ${concerns.take(2).join(' and ')}';
-      case AirQualityStatus.avoid:
-        return concerns.isEmpty
-          ? 'Poor air quality - limit outdoor exposure'
-          : 'Poor air quality due to ${concerns.take(2).join(' and ')} - avoid prolonged outdoor activities';
-    }
-  }
 
   void _createMarkersAndOverlays() {
     Set<Marker> markers = {};

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/user_health_profile.dart';
-import '../../models/pinned_location.dart';
 import '../../services/database_service.dart';
+import '../../widgets/sensitive_health_data_card.dart';
 import '../onboarding/onboarding_flow.dart';
 
 class ProfileTab extends StatefulWidget {
@@ -13,7 +13,6 @@ class ProfileTab extends StatefulWidget {
 
 class _ProfileTabState extends State<ProfileTab> {
   UserHealthProfile? _userProfile;
-  List<PinnedLocation> _pinnedLocations = [];
   bool _isLoading = true;
 
   @override
@@ -25,7 +24,6 @@ class _ProfileTabState extends State<ProfileTab> {
   Future<void> _loadData() async {
     try {
       _userProfile = await DatabaseService().getUserHealthProfile('user_profile');
-      _pinnedLocations = await DatabaseService().getPinnedLocations();
       setState(() {
         _isLoading = false;
       });
@@ -70,13 +68,11 @@ class _ProfileTabState extends State<ProfileTab> {
           const SizedBox(height: 16),
           _buildHealthConditionsCard(),
           const SizedBox(height: 16),
-          _buildSensitivityCard(),
-          const SizedBox(height: 16),
           _buildLifestyleFactorsCard(),
           const SizedBox(height: 16),
           _buildHomeEnvironmentCard(),
           const SizedBox(height: 16),
-          _buildPinnedLocationsCard(),
+          const SensitiveHealthDataCard(),
           const SizedBox(height: 16),
           _buildSettingsCard(),
         ],
@@ -270,44 +266,6 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  Widget _buildSensitivityCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.tune, color: Colors.orange),
-                const SizedBox(width: 8),
-                Text(
-                  'Air Quality Sensitivity',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Text('Level: ${_userProfile!.sensitivityLevel}/5'),
-                const SizedBox(width: 16),
-                Text(_getSensitivityLabel(_userProfile!.sensitivityLevel)),
-              ],
-            ),
-            const SizedBox(height: 8),
-            LinearProgressIndicator(
-              value: _userProfile!.sensitivityLevel / 5.0,
-              backgroundColor: Colors.grey[300],
-              valueColor: AlwaysStoppedAnimation<Color>(
-                _getSensitivityColor(_userProfile!.sensitivityLevel),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildLifestyleFactorsCard() {
     return Card(
@@ -383,56 +341,6 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  Widget _buildPinnedLocationsCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.location_on, color: Colors.blue),
-                const SizedBox(width: 8),
-                Text(
-                  'Saved Locations',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const Spacer(),
-                Text(
-                  '${_pinnedLocations.length}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_pinnedLocations.isEmpty)
-              const Text('No saved locations')
-            else
-              ..._pinnedLocations.take(3).map((location) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Text(location.type.icon),
-                  title: Text(location.name),
-                  subtitle: Text(location.type.displayName),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    // Navigate to location details or map
-                  },
-                );
-              }).toList(),
-            if (_pinnedLocations.length > 3)
-              TextButton(
-                onPressed: () {
-                  // Navigate to all locations
-                },
-                child: Text('View all ${_pinnedLocations.length} locations'),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildSettingsCard() {
     return Card(
@@ -458,15 +366,6 @@ class _ProfileTabState extends State<ProfileTab> {
               title: const Text('Edit Health Profile'),
               trailing: const Icon(Icons.chevron_right),
               onTap: _editProfile,
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.notifications),
-              title: const Text('Notification Settings'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                // Navigate to notification settings
-              },
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -572,22 +471,6 @@ class _ProfileTabState extends State<ProfileTab> {
     }
   }
 
-  String _getSensitivityLabel(int level) {
-    switch (level) {
-      case 1: return 'Low';
-      case 2: return 'Mild';
-      case 3: return 'Moderate';
-      case 4: return 'High';
-      case 5: return 'Very High';
-      default: return 'Moderate';
-    }
-  }
-
-  Color _getSensitivityColor(int level) {
-    if (level <= 2) return Colors.green;
-    if (level <= 3) return Colors.orange;
-    return Colors.red;
-  }
 
   String _getLifestyleRiskName(LifestyleRisk risk) {
     switch (risk) {

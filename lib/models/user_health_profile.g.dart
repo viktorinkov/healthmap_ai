@@ -14,7 +14,6 @@ UserHealthProfile _$UserHealthProfileFromJson(Map<String, dynamic> json) =>
           .toList(),
       ageGroup: $enumDecode(_$AgeGroupEnumMap, json['ageGroup']),
       isPregnant: json['isPregnant'] as bool? ?? false,
-      sensitivityLevel: (json['sensitivityLevel'] as num?)?.toInt() ?? 3,
       lifestyleRisks: (json['lifestyleRisks'] as List<dynamic>?)
               ?.map((e) => $enumDecode(_$LifestyleRiskEnumMap, e))
               .toList() ??
@@ -33,7 +32,6 @@ Map<String, dynamic> _$UserHealthProfileToJson(UserHealthProfile instance) =>
           instance.conditions.map((e) => _$HealthConditionEnumMap[e]!).toList(),
       'ageGroup': _$AgeGroupEnumMap[instance.ageGroup]!,
       'isPregnant': instance.isPregnant,
-      'sensitivityLevel': instance.sensitivityLevel,
       'lifestyleRisks': instance.lifestyleRisks
           .map((e) => _$LifestyleRiskEnumMap[e]!)
           .toList(),

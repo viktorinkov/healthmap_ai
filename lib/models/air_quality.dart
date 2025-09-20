@@ -28,6 +28,30 @@ class AirQualityData {
 
   factory AirQualityData.fromJson(Map<String, dynamic> json) => _$AirQualityDataFromJson(json);
   Map<String, dynamic> toJson() => _$AirQualityDataToJson(this);
+
+  AirQualityData copyWith({
+    String? id,
+    String? locationName,
+    double? latitude,
+    double? longitude,
+    DateTime? timestamp,
+    AirQualityMetrics? metrics,
+    AirQualityStatus? status,
+    String? statusReason,
+    List<HealthRecommendationTag>? healthRecommendations,
+  }) {
+    return AirQualityData(
+      id: id ?? this.id,
+      locationName: locationName ?? this.locationName,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      timestamp: timestamp ?? this.timestamp,
+      metrics: metrics ?? this.metrics,
+      status: status ?? this.status,
+      statusReason: statusReason ?? this.statusReason,
+      healthRecommendations: healthRecommendations ?? this.healthRecommendations,
+    );
+  }
 }
 
 @JsonSerializable()
@@ -112,7 +136,7 @@ extension AirQualityStatusExtension on AirQualityStatus {
 
   static AirQualityStatus fromScore(double score) {
     if (score <= 50) return AirQualityStatus.good;
-    if (score <= 75) return AirQualityStatus.caution;
+    if (score <= 100) return AirQualityStatus.caution;
     return AirQualityStatus.avoid;
   }
 }

@@ -29,7 +29,7 @@ pip install -r requirements.txt
 pip install wearipedia
 
 # Install Node.js dependencies  
-cd ../backend_node
+cd ../backend
 npm install
 
 # Return to root directory
@@ -164,7 +164,7 @@ Flutter App
 
 ### Backend
 - `backend_python/` - New Python backend for health insights
-- `backend_node/` - Renamed from `backend/`
+- `backend/` - Node.js backend for environmental data
 - `start_backends.sh` - Startup script for both backends
 
 ### Frontend

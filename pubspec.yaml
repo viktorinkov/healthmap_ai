@@ -64,6 +64,16 @@ dependencies:
   # Environment variables
   flutter_dotenv: ^5.1.0
 
+  # Charts for data visualization
+  fl_chart: ^0.66.0
+
+  # URL launcher for external links
+  url_launcher: ^6.2.2
+
+  # Deep link handling
+  app_links: ^3.5.0
+  geolocator: ^14.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -71,18 +71,18 @@ backend/dist/
 backend/build/
 backend/.cache/
 
-# Backend Node (renamed)
-backend_node/node_modules/
-backend_node/.env
-backend_node/*.db
-backend_node/database.db
-backend_node/npm-debug.log*
-backend_node/yarn-debug.log*
-backend_node/yarn-error.log*
-backend_node/.npm
-backend_node/.yarn
-backend_node/logs/
-backend_node/*.log
+# Backend Node
+backend/node_modules/
+backend/.env
+backend/*.db
+backend/database.db
+backend/npm-debug.log*
+backend/yarn-debug.log*
+backend/yarn-error.log*
+backend/.npm
+backend/.yarn
+backend/logs/
+backend/*.log
 
 # Backend Python
 backend_python/.env

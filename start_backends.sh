@@ -11,7 +11,7 @@ lsof -ti:5001 | xargs kill -9 2>/dev/null
 
 # Start Node.js backend (Environmental Data)
 echo "Starting Node.js backend on port 3000..."
-cd backend_node
+cd backend
 npm start &
 NODE_PID=$!
 cd ..

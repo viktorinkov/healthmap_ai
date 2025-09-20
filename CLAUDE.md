@@ -92,9 +92,12 @@ lib/
 - Implement retry logic for failed requests
 - Cache data locally when appropriate
 - Show loading indicators during API calls
-- **NEVER USE FAKE/FALLBACK DATA** - Always show "No data available" when real data is unavailable
+- **CRITICAL: NEVER USE FAKE/FALLBACK DATA** - Always show "No data available" when real data is unavailable
+- **NEVER return default/zero values** - If API fails, explicitly show data unavailability
+- **NEVER display placeholder or simulated data** - This creates misleading user experiences
 - Only display actual data from verified API sources
 - Be transparent about data availability to users
+- When APIs fail, show clear error messages like "Pollen data unavailable" rather than empty charts or zero values
 
 ### Database Operations
 - Use SQLite for local data persistence
@@ -202,7 +205,7 @@ When helping with this project, you are a super intelligent assistant that:
 1. **ONLY DO WHAT IS EXPLICITLY REQUESTED** - Never add features, functionality, or code that wasn't specifically asked for
 2. **NO DUPLICATE FUNCTIONALITY** - Always check existing codebase for similar components/functions before creating new ones
 3. **NO FAKE BUTTONS OR NON-FUNCTIONAL UI** - Every button, input, or interactive element MUST have proper functionality implemented
-4. **NO FAKE OR FALLBACK DATA** - Never display simulated, estimated, or placeholder data as if it were real
+4. **ABSOLUTELY NO FAKE OR FALLBACK DATA** - Never display simulated, estimated, placeholder, or default zero values as if they were real data
 5. **NO ASSUMPTIONS** - If something is unclear, ask for clarification rather than assuming what the user wants
 
 ### Code Quality Guidelines:
@@ -233,8 +236,9 @@ When helping with this project, you are a super intelligent assistant that:
 - Don't duplicate existing functionality
 - Don't create incomplete implementations
 - Don't assume user requirements beyond what's stated
-- **Don't use fake, simulated, or estimated data** - Show "No data available" instead
-- Don't create misleading user experiences with placeholder data
+- **NEVER use fake, simulated, estimated, or default zero data** - Always show explicit "No data available" messages instead
+- **NEVER return fallback/placeholder data when APIs fail** - Show clear error states instead
+- Don't create misleading user experiences with any form of fake data
 
 ---
 

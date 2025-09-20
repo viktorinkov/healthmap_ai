@@ -126,7 +126,6 @@ class DatabaseService {
         'conditions': jsonEncode(profile.conditions.map((e) => e.name).toList()),
         'age_group': profile.ageGroup.name,
         'is_pregnant': profile.isPregnant ? 1 : 0,
-        'sensitivity_level': profile.sensitivityLevel,
         'lifestyle_risks': jsonEncode(profile.lifestyleRisks.map((e) => e.name).toList()),
         'domestic_risks': jsonEncode(profile.domesticRisks.map((e) => e.name).toList()),
         'last_updated': profile.lastUpdated.toIso8601String(),
@@ -152,7 +151,6 @@ class DatabaseService {
             .toList(),
         ageGroup: AgeGroup.values.firstWhere((a) => a.name == map['age_group']),
         isPregnant: (map['is_pregnant'] as int) == 1,
-        sensitivityLevel: map['sensitivity_level'] as int,
         lifestyleRisks: (jsonDecode(map['lifestyle_risks'] as String) as List)
             .map((e) => LifestyleRisk.values.firstWhere((r) => r.name == e))
             .toList(),

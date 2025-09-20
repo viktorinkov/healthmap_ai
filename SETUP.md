@@ -27,7 +27,7 @@ psql -d health_monitoring -c "ALTER USER postgres WITH SUPERUSER;"
 
 #### Node.js Backend (Environmental Data)
 ```bash
-cd backend_node
+cd backend
 npm install
 npm start  # Runs on port 3000
 ```
