@@ -267,11 +267,8 @@ class AirQualityApiService {
             wildfireAirQualityImpact = 'No significant impact expected';
           }
         } else {
-          // No fires detected
+          // No fires detected - keep API values, just set index to 0
           wildfireIndex = 0.0;
-          wildfireRiskLevel = 'Low';
-          wildfireSmokeImpact = 'None';
-          wildfireAirQualityImpact = 'No impact expected';
         }
       } catch (e) {
         debugPrint('Error fetching radon/wildfire data: $e');
