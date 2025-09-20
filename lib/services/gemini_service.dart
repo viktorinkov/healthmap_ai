@@ -39,14 +39,18 @@ class GeminiService {
       );
 
       if (model == null) {
-        return ['Unable to generate AI recommendations. Please check your Gemini API key.'];
+        return [
+          'Unable to generate AI recommendations. Please check your Gemini API key.'
+        ];
       }
       final response = await model!.generateContent([Content.text(prompt)]);
 
       if (response.text != null) {
         return _parseRecommendations(response.text!);
       } else {
-        return ['Unable to generate personalized recommendations at this time.'];
+        return [
+          'Unable to generate personalized recommendations at this time.'
+        ];
       }
     } catch (e) {
       print('Error generating Gemini recommendations: $e');
@@ -60,7 +64,8 @@ class GeminiService {
     required String location,
     EnvironmentalMeasurements? environmentalMeasurements,
   }) {
-    final currentAQ = recentAirQuality.isNotEmpty ? recentAirQuality.first : null;
+    final currentAQ =
+        recentAirQuality.isNotEmpty ? recentAirQuality.first : null;
 
     final prompt = '''
 You are a health AI assistant specializing in air quality and public health. Generate personalized daily recommendations for a person with the following profile:
@@ -143,28 +148,39 @@ Generate personalized recommendations:
 
   static List<String> _parseRecommendations(String response) {
     // Split response into individual recommendations
-    final lines = response.split('\n')
+    final lines = response
+        .split('\n')
         .where((line) => line.trim().isNotEmpty)
-        .where((line) => line.contains('•') || line.contains('✓') || line.contains('🔸') ||
-                         line.startsWith('1.') || line.startsWith('2.') ||
-                         line.startsWith('3.') || line.startsWith('4.') ||
-                         line.startsWith('5.') || line.startsWith('6.') ||
-                         line.startsWith('7.') || line.startsWith('8.') ||
-                         RegExp(r'^[🌟💡🏃‍♀️🏠💨😷🌱⚠️❤️🤱👶👵🏋️‍♂️👷‍♂️🚗🌅🌪️☀️🔥✅💧🌡️]').hasMatch(line))
+        .where((line) =>
+            line.contains('•') ||
+            line.contains('✓') ||
+            line.contains('🔸') ||
+            line.startsWith('1.') ||
+            line.startsWith('2.') ||
+            line.startsWith('3.') ||
+            line.startsWith('4.') ||
+            line.startsWith('5.') ||
+            line.startsWith('6.') ||
+            line.startsWith('7.') ||
+            line.startsWith('8.') ||
+            RegExp(r'^[🌟💡🏃‍♀️🏠💨😷🌱⚠️❤️🤱👶👵🏋️‍♂️👷‍♂️🚗🌅🌪️☀️🔥✅💧🌡️]')
+                .hasMatch(line))
         .map((line) => line.trim())
         .take(8)
         .toList();
 
     if (lines.isEmpty) {
       // Fallback parsing - split by periods or numbered lists
-      final fallbackLines = response.split(RegExp(r'[.!]\s+'))
+      final fallbackLines = response
+          .split(RegExp(r'[.!]\s+'))
           .where((line) => line.trim().length > 20)
           .take(6)
           .map((line) => line.trim())
           .toList();
 
-      return fallbackLines.isNotEmpty ? fallbackLines :
-          ['Unable to parse recommendations. Please try again.'];
+      return fallbackLines.isNotEmpty
+          ? fallbackLines
+          : ['Unable to parse recommendations. Please try again.'];
     }
 
     return lines;
@@ -200,9 +216,14 @@ Provide a 1-2 sentence explanation of what this means for residents in simple te
   static Future<List<dynamic>> generateDailyTasks({
     required UserHealthProfile userProfile,
     required DateTime date,
+    int progressLevel = 1,
   }) async {
     try {
-      final prompt = _buildDailyTasksPrompt(userProfile: userProfile, date: date);
+      final prompt = _buildDailyTasksPrompt(
+        userProfile: userProfile,
+        date: date,
+        progressLevel: progressLevel,
+      );
 
       if (model == null) {
         return [];
@@ -210,7 +231,7 @@ Provide a 1-2 sentence explanation of what this means for residents in simple te
       final response = await model!.generateContent([Content.text(prompt)]);
 
       if (response.text != null) {
-        return _parseDailyTasks(response.text!, date);
+        return _parseDailyTasks(response.text!, date, progressLevel);
       } else {
         return [];
       }
@@ -220,11 +241,46 @@ Provide a 1-2 sentence explanation of what this means for residents in simple te
     }
   }
 
+  static Future<String> generateTaskPrompt({
+    required UserHealthProfile userProfile,
+    required String taskType,
+    int progressLevel = 1,
+  }) async {
+    try {
+      final prompt = _buildTaskPrompt(
+        userProfile: userProfile,
+        taskType: taskType,
+        progressLevel: progressLevel,
+      );
+
+      if (model == null) {
+        return 'AI recommendations unavailable. Please check your Gemini API key.';
+      }
+      final response = await model!.generateContent([Content.text(prompt)]);
+
+      return response.text ??
+          'Unable to generate personalized guidance at this time.';
+    } catch (e) {
+      print('Error generating task prompt: $e');
+      return 'Error generating personalized guidance. Please try again.';
+    }
+  }
+
   static String _buildDailyTasksPrompt({
     required UserHealthProfile userProfile,
     required DateTime date,
+    int progressLevel = 1,
   }) {
-    final dayOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][date.weekday - 1];
+    final dayOfWeek = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ][date.weekday - 1];
+    final difficultyLevel = _getDifficultyDescription(progressLevel);
 
     final prompt = '''
 You are a health AI assistant. Generate 3-5 personalized daily tasks for a person based on their health profile for $dayOfWeek.
@@ -237,42 +293,129 @@ HEALTH PROFILE:
 - Lifestyle Factors: ${userProfile.lifestyleRisks.map((r) => r.name).join(', ')}
 - Home Environment: ${userProfile.domesticRisks.map((r) => r.name).join(', ')}
 
-CATEGORIES: health, fitness, wellness, safety, planning
+PROGRESS LEVEL: $progressLevel/10 ($difficultyLevel)
+CATEGORIES: health, fitness, wellness, safety, planning, nutrition, mental, environmental, social, education
 
 INSTRUCTIONS:
-1. Generate 3-5 specific, actionable daily tasks
+1. Generate exactly 10 specific, actionable daily tasks appropriate for level $progressLevel
 2. Consider their health conditions and risk factors
 3. Include air quality-related tasks when relevant
-4. Format as: TITLE|DESCRIPTION|CATEGORY
-5. Make tasks realistic and achievable in one day
-6. Focus on health and wellness actions
+4. Adjust task complexity based on progress level ($difficultyLevel)
+5. Format as: TITLE|DESCRIPTION|CATEGORY|DIFFICULTY_LEVEL
+6. Make tasks realistic and achievable in one day
+7. Focus on health and wellness actions
+8. Include variety across all categories: health, fitness, wellness, safety, planning
+9. Ensure tasks progress in difficulty appropriately for the level
+10. Make each task unique and valuable for the user's health journey
 
-Generate personalized daily tasks:
+Generate exactly 10 personalized daily tasks:
 ''';
 
     return prompt;
   }
 
-  static List<dynamic> _parseDailyTasks(String response, DateTime date) {
+  static String _buildTaskPrompt({
+    required UserHealthProfile userProfile,
+    required String taskType,
+    int progressLevel = 1,
+  }) {
+    final difficultyLevel = _getDifficultyDescription(progressLevel);
+
+    final prompt = '''
+You are a health AI assistant. Provide detailed, personalized guidance for a $taskType task.
+
+HEALTH PROFILE:
+- Age Group: ${userProfile.ageGroup.displayName}
+- Pregnancy Status: ${userProfile.isPregnant ? 'Pregnant' : 'Not pregnant'}
+- Sensitivity Level: ${userProfile.sensitivityLevel}/5
+- Health Conditions: ${userProfile.conditions.map((c) => c.displayName).join(', ')}
+- Lifestyle Factors: ${userProfile.lifestyleRisks.map((r) => r.name).join(', ')}
+- Home Environment: ${userProfile.domesticRisks.map((r) => r.name).join(', ')}
+
+PROGRESS LEVEL: $progressLevel/10 ($difficultyLevel)
+
+TASK TYPE: $taskType
+
+INSTRUCTIONS:
+1. Provide specific, actionable guidance for this task type
+2. Consider their health conditions and current progress level
+3. Include safety considerations if relevant
+4. Suggest modifications based on their health profile
+5. Keep advice practical and achievable
+6. Include motivation and benefits
+
+Generate detailed guidance:
+''';
+
+    return prompt;
+  }
+
+  static String _getDifficultyDescription(int level) {
+    switch (level) {
+      case 1:
+        return 'Beginner - Very Easy';
+      case 2:
+        return 'Beginner - Easy';
+      case 3:
+        return 'Elementary - Light';
+      case 4:
+        return 'Elementary - Moderate';
+      case 5:
+        return 'Intermediate - Regular';
+      case 6:
+        return 'Intermediate - Challenging';
+      case 7:
+        return 'Advanced - Demanding';
+      case 8:
+        return 'Advanced - Intensive';
+      case 9:
+        return 'Expert - Very Challenging';
+      case 10:
+        return 'Expert - Maximum';
+      default:
+        return 'Beginner - Easy';
+    }
+  }
+
+  static List<dynamic> _parseDailyTasks(
+      String response, DateTime date, int progressLevel) {
     final tasks = <Map<String, dynamic>>[];
-    final lines = response.split('\n')
+    final lines = response
+        .split('\n')
         .where((line) => line.trim().isNotEmpty && line.contains('|'))
-        .take(5)
+        .take(10)
         .toList();
 
     for (int i = 0; i < lines.length; i++) {
       final parts = lines[i].split('|');
       if (parts.length >= 3) {
-        final title = parts[0].trim().replaceAll(RegExp(r'^[\d\.\-\*\•]+\s*'), '');
+        final title =
+            parts[0].trim().replaceAll(RegExp(r'^[\d\.\-\*\•]+\s*'), '');
         final description = parts[1].trim();
         final categoryStr = parts[2].trim().toLowerCase();
+        final taskProgressLevel = parts.length >= 4
+            ? int.tryParse(parts[3].trim()) ?? progressLevel
+            : progressLevel;
 
         // Map category string to enum
         String category = 'wellness';
-        if (categoryStr.contains('health')) category = 'health';
-        else if (categoryStr.contains('fitness')) category = 'fitness';
-        else if (categoryStr.contains('safety')) category = 'safety';
-        else if (categoryStr.contains('planning')) category = 'planning';
+        if (categoryStr.contains('health'))
+          category = 'health';
+        else if (categoryStr.contains('fitness'))
+          category = 'fitness';
+        else if (categoryStr.contains('safety'))
+          category = 'safety';
+        else if (categoryStr.contains('planning'))
+          category = 'planning';
+        else if (categoryStr.contains('nutrition'))
+          category = 'nutrition';
+        else if (categoryStr.contains('mental'))
+          category = 'mental';
+        else if (categoryStr.contains('environmental'))
+          category = 'environmental';
+        else if (categoryStr.contains('social'))
+          category = 'social';
+        else if (categoryStr.contains('education')) category = 'education';
 
         tasks.add({
           'id': 'ai_task_${date.millisecondsSinceEpoch}_$i',
@@ -281,6 +424,8 @@ Generate personalized daily tasks:
           'category': category,
           'isCompleted': false,
           'createdAt': date.toIso8601String(),
+          'progressLevel': taskProgressLevel,
+          'aiPrompt': 'Generated by AI for progress level $progressLevel',
         });
       }
     }

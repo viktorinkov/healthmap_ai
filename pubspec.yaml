@@ -63,6 +63,13 @@ dependencies:
 
   # Environment variables
   flutter_dotenv: ^5.1.0
+  
+  # Date formatting
+  intl: ^0.18.1
+  
+  # Location permissions and services
+  permission_handler: ^11.0.1
+  geolocator: ^10.1.0
 
 dev_dependencies:
   flutter_test:

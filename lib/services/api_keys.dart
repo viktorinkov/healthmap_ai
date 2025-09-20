@@ -5,8 +5,7 @@ class ApiKeys {
     final apiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
     if (apiKey.isEmpty) {
       throw Exception(
-        'Google Maps API key not found. Please create a .env file with GOOGLE_MAPS_API_KEY=your_api_key_here'
-      );
+          'Google Maps API key not found. Please create a .env file with GOOGLE_MAPS_API_KEY=your_api_key_here');
     }
     return apiKey;
   }
@@ -22,8 +21,19 @@ class ApiKeys {
     return apiKey;
   }
 
-  // Optional: Check if keys are configured
-  static bool get hasGoogleMapsKey => dotenv.env['GOOGLE_MAPS_API_KEY']?.isNotEmpty ?? false;
-  static bool get hasGeminiKey => dotenv.env['GEMINI_API_KEY']?.isNotEmpty ?? false;
-  static bool get hasOpenWeatherKey => dotenv.env['OPENWEATHER_API_KEY']?.isNotEmpty ?? false;
+  // Optional: Check if keys are configured with real values (not placeholders)
+  static bool get hasGoogleMapsKey {
+    final key = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
+    return key.isNotEmpty && !key.contains('your_') && !key.contains('_here');
+  }
+
+  static bool get hasGeminiKey {
+    final key = dotenv.env['GEMINI_API_KEY'] ?? '';
+    return key.isNotEmpty && !key.contains('your_') && !key.contains('_here');
+  }
+
+  static bool get hasOpenWeatherKey {
+    final key = dotenv.env['OPENWEATHER_API_KEY'] ?? '';
+    return key.isNotEmpty && !key.contains('your_') && !key.contains('_here');
+  }
 }
