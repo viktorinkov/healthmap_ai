@@ -70,3 +70,27 @@ backend/*.log
 backend/dist/
 backend/build/
 backend/.cache/
+
+# Backend Node (renamed)
+backend_node/node_modules/
+backend_node/.env
+backend_node/*.db
+backend_node/database.db
+backend_node/npm-debug.log*
+backend_node/yarn-debug.log*
+backend_node/yarn-error.log*
+backend_node/.npm
+backend_node/.yarn
+backend_node/logs/
+backend_node/*.log
+
+# Backend Python
+backend_python/.env
+backend_python/__pycache__/
+backend_python/*.pyc
+backend_python/*.pyo
+backend_python/*.db
+backend_python/logs/
+backend_python/*.log
+backend_python/venv/
+backend_python/.pytest_cache/

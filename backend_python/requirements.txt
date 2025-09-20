@@ -1,0 +1,41 @@
+# Core Flask dependencies
+Flask==3.0.0
+flask-cors==4.0.0
+
+# Database dependencies
+psycopg2-binary==2.9.9
+SQLAlchemy==2.0.23
+
+# Data processing
+pandas==2.1.4
+numpy==1.26.2
+
+# Environment variables
+python-dotenv==1.0.0
+
+# Wearipedia - Fitbit data extraction
+# Note: Wearipedia must be cloned and installed separately:
+# git clone https://github.com/Stanford-Health/wearipedia.git
+# cd wearipedia && pip install -e .
+
+# Google Gemini API for health insights
+google-generativeai==0.8.5
+
+# HTTP requests
+requests==2.31.0
+
+# Date/time handling
+python-dateutil==2.8.2
+
+# Logging
+loguru==0.7.2
+
+# Testing dependencies (optional)
+pytest==7.4.3
+pytest-cov==4.1.0
+unittest-xml-reporting==3.2.0
+
+# Development tools (optional)
+black==23.12.1
+flake8==6.1.0
+mypy==1.7.1
