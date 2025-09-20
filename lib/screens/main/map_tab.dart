@@ -5,8 +5,10 @@ import 'package:location/location.dart';
 import 'package:http/http.dart' as http;
 import '../../models/pinned_location.dart';
 import '../../models/air_quality.dart';
+import '../../models/user_health_profile.dart';
 import '../../services/air_quality_api_service.dart';
 import '../../services/database_service.dart';
+import '../../services/gemini_service.dart';
 import '../../services/unified_air_quality_service.dart';
 import '../../widgets/add_location_dialog.dart';
 import '../../widgets/unified_location_card.dart';
@@ -27,6 +29,7 @@ class _MapTabState extends State<MapTab> {
   Set<Marker> _markers = {};
   Set<TileOverlay> _tileOverlays = {};
   bool _isLoading = true;
+  UserHealthProfile? _userProfile;
 
   @override
   void initState() {
@@ -37,13 +40,18 @@ class _MapTabState extends State<MapTab> {
   Future<void> _initializeData() async {
     // Set a maximum timeout for initialization
     try {
-      await Future.any([
-        _doInitializeData(),
-        Future.delayed(const Duration(seconds: 10)), // 10 second timeout
-      ]);
+      await _doInitializeData().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('Initialization timed out after 10 seconds, continuing with current data');
+        },
+      );
     } catch (e) {
-      debugPrint('Initialization timeout or error: $e');
+      debugPrint('Initialization error: $e');
     }
+
+    // Create markers and overlays with whatever data we have
+    _createMarkersAndOverlays();
 
     // Ensure map is shown regardless of what happens
     if (mounted) {
@@ -58,9 +66,21 @@ class _MapTabState extends State<MapTab> {
       // Get current location (critical for map display)
       await _getCurrentLocation().timeout(const Duration(seconds: 5));
 
+      // Load user profile (non-critical)
+      try {
+        _userProfile = await DatabaseService().getUserHealthProfile('user_profile').timeout(const Duration(seconds: 3));
+      } catch (e) {
+        debugPrint('Error loading user profile: $e');
+        _userProfile = null; // Continue without profile
+      }
+
       // Load pinned locations (non-critical)
       try {
         _pinnedLocations = await DatabaseService().getPinnedLocations().timeout(const Duration(seconds: 3));
+        debugPrint('Loaded ${_pinnedLocations.length} pinned locations from database');
+        for (final loc in _pinnedLocations) {
+          debugPrint('  - ${loc.name}: ${loc.latitude}, ${loc.longitude}');
+        }
       } catch (e) {
         debugPrint('Error loading pinned locations: $e');
         _pinnedLocations = []; // Continue with empty list
@@ -76,15 +96,6 @@ class _MapTabState extends State<MapTab> {
         }
       } else {
         _locationAirQuality = {}; // No pins, no data needed
-      }
-
-      // Create markers and heatmap overlay (non-critical)
-      try {
-        _createMarkersAndOverlays();
-      } catch (e) {
-        debugPrint('Error creating markers and overlays: $e');
-        _markers = {};
-        _tileOverlays = {};
       }
     } catch (e) {
       debugPrint('Error in data initialization: $e');
@@ -119,12 +130,15 @@ class _MapTabState extends State<MapTab> {
   Future<void> _loadAirQualityForLocations() async {
     _locationAirQuality = await UnifiedAirQualityService.getAirQualityForAllLocations(
       _pinnedLocations,
+      userProfile: _userProfile,
     );
   }
 
 
 
   void _createMarkersAndOverlays() {
+    debugPrint('Creating markers for ${_pinnedLocations.length} pinned locations');
+
     Set<Marker> markers = {};
     Set<TileOverlay> tileOverlays = {};
 
@@ -140,6 +154,7 @@ class _MapTabState extends State<MapTab> {
 
     // Add pinned location markers
     for (final location in _pinnedLocations) {
+      debugPrint('Adding marker for ${location.name} at ${location.latitude}, ${location.longitude}');
       markers.add(
         Marker(
           markerId: MarkerId('pinned_${location.id}'),
@@ -154,6 +169,8 @@ class _MapTabState extends State<MapTab> {
       );
     }
 
+    debugPrint('Total markers created: ${markers.length}');
+
     setState(() {
       _markers = markers;
       _tileOverlays = tileOverlays;
@@ -162,6 +179,8 @@ class _MapTabState extends State<MapTab> {
 
 
   void _showPinnedLocationDetails(PinnedLocation location) {
+    final airQuality = _locationAirQuality[location.id];
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -171,12 +190,54 @@ class _MapTabState extends State<MapTab> {
         child: Container(
           constraints: const BoxConstraints(maxWidth: 500),
           child: SingleChildScrollView(
-            child: UnifiedLocationCard(
-              location: location,
-              airQuality: _locationAirQuality[location.id],
-              showFullDetails: true,
-              hideDetailsButton: true,
-            ),
+            child: airQuality != null
+                ? FutureBuilder<Map<String, dynamic>>(
+                    future: GeminiService.generateIntelligentAirQualityAssessment(
+                      metrics: airQuality.metrics,
+                      locationName: location.name,
+                    ),
+                    builder: (context, snapshot) {
+                      // Create modified air quality data with Gemini assessment
+                      AirQualityData enhancedAirQuality = airQuality;
+
+                      if (snapshot.hasData && snapshot.data != null) {
+                        final statusString = snapshot.data!['status'] as String;
+                        final justification = snapshot.data!['justification'] as String;
+
+                        final geminiStatus = AirQualityStatus.values.firstWhere(
+                          (s) => s.name == statusString,
+                          orElse: () => airQuality.status,
+                        );
+
+                        // Create new air quality data with Gemini status and justification
+                        enhancedAirQuality = airQuality.copyWith(
+                          status: geminiStatus,
+                          statusReason: justification.isNotEmpty ? justification : airQuality.statusReason,
+                        );
+                      }
+
+                      String? geminiAssessment;
+                      if (snapshot.hasData && snapshot.data != null) {
+                        geminiAssessment = snapshot.data!['justification'] as String;
+                      } else if (snapshot.connectionState == ConnectionState.waiting) {
+                        geminiAssessment = 'Analyzing air quality data...';
+                      }
+
+                      return UnifiedLocationCard(
+                        location: location,
+                        airQuality: enhancedAirQuality,
+                        showFullDetails: true,
+                        hideDetailsButton: true,
+                        geminiAssessment: geminiAssessment,
+                      );
+                    },
+                  )
+                : UnifiedLocationCard(
+                    location: location,
+                    airQuality: null,
+                    showFullDetails: true,
+                    hideDetailsButton: true,
+                  ),
           ),
         ),
       ),
