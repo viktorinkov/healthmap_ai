@@ -52,3 +52,21 @@ app.*.map.json
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 android/key.properties
+
+# Backend Node.js
+backend/node_modules/
+backend/.env
+backend/*.db
+backend/database.db
+backend/npm-debug.log*
+backend/yarn-debug.log*
+backend/yarn-error.log*
+backend/.npm
+backend/.yarn
+backend/logs/
+backend/*.log
+
+# Backend build and cache
+backend/dist/
+backend/build/
+backend/.cache/

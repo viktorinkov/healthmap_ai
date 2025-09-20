@@ -1,0 +1,214 @@
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+
+const dbPath = path.resolve(process.env.DATABASE_PATH || './database.db');
+let db;
+
+function getDatabase() {
+  if (!db) {
+    db = new sqlite3.Database(dbPath, (err) => {
+      if (err) {
+        console.error('Error opening database:', err);
+      } else {
+        console.log('Connected to SQLite database');
+      }
+    });
+  }
+  return db;
+}
+
+async function initializeDatabase() {
+  return new Promise((resolve, reject) => {
+    const database = getDatabase();
+
+    database.serialize(() => {
+      // Users table
+      database.run(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT UNIQUE NOT NULL,
+          password TEXT NOT NULL,
+          name TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // User medical profiles
+      database.run(`
+        CREATE TABLE IF NOT EXISTS medical_profiles (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          age INTEGER,
+          has_respiratory_condition BOOLEAN DEFAULT 0,
+          has_heart_condition BOOLEAN DEFAULT 0,
+          has_allergies BOOLEAN DEFAULT 0,
+          is_elderly BOOLEAN DEFAULT 0,
+          is_child BOOLEAN DEFAULT 0,
+          is_pregnant BOOLEAN DEFAULT 0,
+          exercises_outdoors BOOLEAN DEFAULT 0,
+          medications TEXT,
+          notes TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+      `);
+
+      // User pins/locations
+      database.run(`
+        CREATE TABLE IF NOT EXISTS pins (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          name TEXT NOT NULL,
+          latitude REAL NOT NULL,
+          longitude REAL NOT NULL,
+          address TEXT,
+          is_active BOOLEAN DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+      `);
+
+      // Historical air quality data
+      database.run(`
+        CREATE TABLE IF NOT EXISTS air_quality_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pin_id INTEGER NOT NULL,
+          aqi INTEGER,
+          pm25 REAL,
+          pm10 REAL,
+          o3 REAL,
+          no2 REAL,
+          so2 REAL,
+          co REAL,
+          category TEXT,
+          color TEXT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (pin_id) REFERENCES pins (id) ON DELETE CASCADE
+        )
+      `);
+
+      // Historical weather data
+      database.run(`
+        CREATE TABLE IF NOT EXISTS weather_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pin_id INTEGER NOT NULL,
+          temperature REAL,
+          humidity REAL,
+          pressure REAL,
+          wind_speed REAL,
+          wind_direction INTEGER,
+          description TEXT,
+          icon TEXT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (pin_id) REFERENCES pins (id) ON DELETE CASCADE
+        )
+      `);
+
+      // Historical pollen data
+      database.run(`
+        CREATE TABLE IF NOT EXISTS pollen_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pin_id INTEGER NOT NULL,
+          tree_pollen INTEGER,
+          grass_pollen INTEGER,
+          weed_pollen INTEGER,
+          overall_risk TEXT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (pin_id) REFERENCES pins (id) ON DELETE CASCADE
+        )
+      `);
+
+      // Cache table for external API responses
+      database.run(`
+        CREATE TABLE IF NOT EXISTS api_cache (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cache_key TEXT UNIQUE NOT NULL,
+          data TEXT NOT NULL,
+          expires_at DATETIME NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // User sessions
+      database.run(`
+        CREATE TABLE IF NOT EXISTS sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          token TEXT UNIQUE NOT NULL,
+          expires_at DATETIME NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+      `);
+
+      // Create indexes for better query performance
+      database.run(`CREATE INDEX IF NOT EXISTS idx_pins_user_id ON pins(user_id)`);
+      database.run(`CREATE INDEX IF NOT EXISTS idx_air_quality_pin_id ON air_quality_history(pin_id)`);
+      database.run(`CREATE INDEX IF NOT EXISTS idx_weather_pin_id ON weather_history(pin_id)`);
+      database.run(`CREATE INDEX IF NOT EXISTS idx_pollen_pin_id ON pollen_history(pin_id)`);
+      database.run(`CREATE INDEX IF NOT EXISTS idx_cache_key ON api_cache(cache_key)`);
+      database.run(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`);
+
+      database.run(`CREATE INDEX IF NOT EXISTS idx_air_quality_timestamp ON air_quality_history(timestamp)`);
+      database.run(`CREATE INDEX IF NOT EXISTS idx_weather_timestamp ON weather_history(timestamp)`, (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  });
+}
+
+// Helper function to run queries with promises
+function runQuery(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    const database = getDatabase();
+    database.run(sql, params, function(err) {
+      if (err) {
+        reject(err);
+      } else {
+        resolve({ id: this.lastID, changes: this.changes });
+      }
+    });
+  });
+}
+
+// Helper function to get single row
+function getOne(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    const database = getDatabase();
+    database.get(sql, params, (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row);
+      }
+    });
+  });
+}
+
+// Helper function to get multiple rows
+function getAll(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    const database = getDatabase();
+    database.all(sql, params, (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+}
+
+module.exports = {
+  getDatabase,
+  initializeDatabase,
+  runQuery,
+  getOne,
+  getAll
+};
