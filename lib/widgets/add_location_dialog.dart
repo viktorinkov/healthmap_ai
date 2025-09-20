@@ -18,17 +18,8 @@ class AddLocationDialog extends StatefulWidget {
 }
 
 class _AddLocationDialogState extends State<AddLocationDialog> {
-  final _nameController = TextEditingController();
-  final _addressController = TextEditingController();
   LocationType _selectedType = LocationType.home;
   bool _isSaving = false;
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _addressController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,36 +57,6 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              TextField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'Location Name',
-                  hintText: 'e.g., Home, Office, Gym',
-                  prefixIcon: const Icon(Icons.label_outline_rounded),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                ),
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _addressController,
-                decoration: InputDecoration(
-                  labelText: 'Address (Optional)',
-                  hintText: 'Street address or description',
-                  prefixIcon: const Icon(Icons.location_on_outlined),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                ),
-                textCapitalization: TextCapitalization.words,
-                minLines: 1,
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
               Container(
                 decoration: BoxDecoration(
                   border: Border.all(
@@ -215,19 +176,6 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
   }
 
   Future<void> _saveLocation() async {
-    if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please enter a location name'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-      return;
-    }
-
     setState(() {
       _isSaving = true;
     });
@@ -235,13 +183,11 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
     try {
       final location = PinnedLocation(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: _nameController.text.trim(),
+        name: _selectedType.displayName,
         type: _selectedType,
         latitude: widget.position.latitude,
         longitude: widget.position.longitude,
-        address: _addressController.text.trim().isNotEmpty
-          ? _addressController.text.trim()
-          : null,
+        address: null,
         createdAt: DateTime.now(),
       );
 
