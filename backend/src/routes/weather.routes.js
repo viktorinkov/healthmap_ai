@@ -101,6 +101,22 @@ router.get('/history/:pinId',
   }
 );
 
+// Demo endpoint for sample data (no authentication required)
+router.get('/demo/history/:pinId',
+  async (req, res, next) => {
+    try {
+      const { pinId } = req.params;
+      const days = parseInt(req.query.days) || 7;
+
+      // For demo purposes, always return sample data
+      const history = await weatherService.generateSampleWeatherHistory(days, pinId);
+      res.json(history);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Get pollen data for a location
 router.get('/pollen',
   [

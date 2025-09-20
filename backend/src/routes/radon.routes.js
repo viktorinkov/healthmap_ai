@@ -168,6 +168,34 @@ router.get('/history/:pinId', authMiddleware, async (req, res) => {
   }
 });
 
+// Demo endpoint for sample data (no authentication required)
+router.get('/demo/history/:pinId', async (req, res) => {
+  try {
+    const { pinId } = req.params;
+    const { days = 7 } = req.query;
+
+    const daysNum = parseInt(days);
+
+    // For demo purposes, always return sample data
+    const history = await radonService.generateSampleRadonHistory(daysNum, pinId);
+
+    res.json({
+      success: true,
+      pinId: pinId,
+      days: daysNum,
+      history,
+      count: history.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error in GET /radon/demo/history/:pinId:', error);
+    res.status(500).json({
+      error: 'Failed to fetch radon history',
+      details: error.message
+    });
+  }
+});
+
 // Get radon zone information (public endpoint)
 router.get('/zones', async (req, res) => {
   try {

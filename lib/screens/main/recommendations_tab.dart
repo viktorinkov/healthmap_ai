@@ -4,6 +4,7 @@ import '../../models/air_quality.dart';
 import '../../models/pinned_location.dart';
 import '../../services/database_service.dart';
 import '../../services/gemini_service.dart';
+import '../charts/location_charts_screen.dart';
 
 class RecommendationsTab extends StatefulWidget {
   const RecommendationsTab({Key? key}) : super(key: key);
@@ -487,6 +488,8 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
             _buildPollutantGrid(_currentLocationAirQuality!.metrics),
             const SizedBox(height: 12),
             _buildHealthRecommendationTags(_currentLocationAirQuality!),
+            const SizedBox(height: 12),
+            _buildCurrentLocationChartsButton(),
           ],
         ),
       ),
@@ -549,6 +552,8 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
               _buildPollutantGrid(airQuality.metrics),
               const SizedBox(height: 12),
               _buildHealthRecommendationTags(airQuality),
+              const SizedBox(height: 12),
+              _buildChartsButton(location),
             ] else ...[
               const SizedBox(height: 12),
               Text(
@@ -802,6 +807,64 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
                 ),
               )).toList(),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChartsButton(PinnedLocation location) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => LocationChartsScreen(location: location),
+            ),
+          );
+        },
+        icon: const Icon(Icons.analytics),
+        label: const Text('Charts'),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCurrentLocationChartsButton() {
+    final currentLocation = PinnedLocation(
+      id: 'current_location',
+      name: 'Current Location',
+      latitude: 29.7604, // Houston coordinates as default
+      longitude: -95.3698,
+      type: LocationType.other,
+      address: '',
+      createdAt: DateTime.now(),
+    );
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => LocationChartsScreen(location: currentLocation),
+            ),
+          );
+        },
+        icon: const Icon(Icons.analytics),
+        label: const Text('Charts'),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       ),
     );

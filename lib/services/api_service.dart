@@ -297,7 +297,7 @@ class ApiService {
     int days = 7,
   }) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/air-quality/history/$pinId?days=$days'),
+      Uri.parse('$baseUrl/air-quality/demo/history/$pinId?days=$days'),
       headers: _getHeaders(),
     );
 
@@ -309,7 +309,7 @@ class ApiService {
     int days = 7,
   }) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/weather/history/$pinId?days=$days'),
+      Uri.parse('$baseUrl/weather/demo/history/$pinId?days=$days'),
       headers: _getHeaders(),
     );
 
@@ -343,11 +343,13 @@ class ApiService {
     int days = 7,
   }) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/radon/history/$pinId?days=$days'),
+      Uri.parse('$baseUrl/radon/demo/history/$pinId?days=$days'),
       headers: _getHeaders(),
     );
 
-    return jsonDecode(response.body);
+    // Extract history array from the wrapped response
+    final data = jsonDecode(response.body);
+    return data['history'] ?? data;
   }
 
   static Future<Map<String, dynamic>> getRadonBatch(

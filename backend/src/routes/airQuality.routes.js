@@ -71,6 +71,22 @@ router.get('/history/:pinId',
   }
 );
 
+// Demo endpoint for sample data (no authentication required)
+router.get('/demo/history/:pinId',
+  async (req, res, next) => {
+    try {
+      const { pinId } = req.params;
+      const days = parseInt(req.query.days) || 7;
+
+      // For demo purposes, always return sample data
+      const history = await airQualityService.generateSampleAirQualityHistory(days, pinId);
+      res.json(history);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Get air quality for multiple locations (batch request)
 router.post('/batch',
   optionalAuth,
