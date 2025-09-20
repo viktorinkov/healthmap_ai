@@ -32,24 +32,8 @@ class WildfireService {
     } catch (error) {
       console.error('Error fetching wildfire data:', error);
 
-      // Return last known data if available
-      const fallback = await this.getLastKnownData(latitude, longitude);
-      if (fallback) {
-        return fallback;
-      }
-
-      // Return default data structure
-      return {
-        riskLevel: 'Unknown',
-        nearbyFires: 0,
-        closestFireDistance: null,
-        smokeImpact: 'No data available',
-        airQualityImpact: 'Unknown',
-        recommendations: ['Wildfire data unavailable'],
-        fires: [],
-        timestamp: new Date().toISOString(),
-        error: 'Wildfire data unavailable'
-      };
+      // Don't return fallback data - only return real data or null
+      return null;
     }
   }
 

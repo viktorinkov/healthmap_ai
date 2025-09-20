@@ -60,6 +60,16 @@ AirQualityMetrics _$AirQualityMetricsFromJson(Map<String, dynamic> json) =>
       wildfireIndex: (json['wildfireIndex'] as num).toDouble(),
       radon: (json['radon'] as num).toDouble(),
       universalAqi: (json['universalAqi'] as num?)?.toInt(),
+      radonRiskLevel: json['radonRiskLevel'] as String?,
+      radonEpaZone: (json['radonEpaZone'] as num?)?.toInt(),
+      radonZoneDescription: json['radonZoneDescription'] as String?,
+      radonRecommendation: json['radonRecommendation'] as String?,
+      wildfireNearbyFires: (json['wildfireNearbyFires'] as num?)?.toInt(),
+      wildfireClosestDistance:
+          (json['wildfireClosestDistance'] as num?)?.toDouble(),
+      wildfireRiskLevel: json['wildfireRiskLevel'] as String?,
+      wildfireSmokeImpact: json['wildfireSmokeImpact'] as String?,
+      wildfireAirQualityImpact: json['wildfireAirQualityImpact'] as String?,
     );
 
 Map<String, dynamic> _$AirQualityMetricsToJson(AirQualityMetrics instance) =>
@@ -80,6 +90,15 @@ Map<String, dynamic> _$AirQualityMetricsToJson(AirQualityMetrics instance) =>
       'wildfireIndex': instance.wildfireIndex,
       'radon': instance.radon,
       'universalAqi': instance.universalAqi,
+      'radonRiskLevel': instance.radonRiskLevel,
+      'radonEpaZone': instance.radonEpaZone,
+      'radonZoneDescription': instance.radonZoneDescription,
+      'radonRecommendation': instance.radonRecommendation,
+      'wildfireNearbyFires': instance.wildfireNearbyFires,
+      'wildfireClosestDistance': instance.wildfireClosestDistance,
+      'wildfireRiskLevel': instance.wildfireRiskLevel,
+      'wildfireSmokeImpact': instance.wildfireSmokeImpact,
+      'wildfireAirQualityImpact': instance.wildfireAirQualityImpact,
     };
 
 HealthRecommendationTag _$HealthRecommendationTagFromJson(

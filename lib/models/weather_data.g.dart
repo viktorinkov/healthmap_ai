@@ -8,6 +8,8 @@ part of 'weather_data.dart';
 
 WeatherData _$WeatherDataFromJson(Map<String, dynamic> json) => WeatherData(
       temperature: (json['temperature'] as num).toDouble(),
+      minTemp: (json['minTemp'] as num?)?.toDouble(),
+      maxTemp: (json['maxTemp'] as num?)?.toDouble(),
       feelsLike: (json['feelsLike'] as num).toDouble(),
       humidity: (json['humidity'] as num).toDouble(),
       pressure: (json['pressure'] as num).toDouble(),
@@ -26,11 +28,15 @@ WeatherData _$WeatherDataFromJson(Map<String, dynamic> json) => WeatherData(
       precipitationIntensity:
           (json['precipitationIntensity'] as num?)?.toDouble(),
       precipitationType: json['precipitationType'] as String?,
+      precipitationProbability:
+          (json['precipitationProbability'] as num?)?.toDouble(),
     );
 
 Map<String, dynamic> _$WeatherDataToJson(WeatherData instance) =>
     <String, dynamic>{
       'temperature': instance.temperature,
+      'minTemp': instance.minTemp,
+      'maxTemp': instance.maxTemp,
       'feelsLike': instance.feelsLike,
       'humidity': instance.humidity,
       'pressure': instance.pressure,
@@ -43,6 +49,7 @@ Map<String, dynamic> _$WeatherDataToJson(WeatherData instance) =>
       'description': instance.description,
       'icon': instance.icon,
       'timestamp': instance.timestamp.toIso8601String(),
+      'precipitationProbability': instance.precipitationProbability,
       'heatWaveAlert': instance.heatWaveAlert,
       'coldWaveAlert': instance.coldWaveAlert,
       'stagnationEvent': instance.stagnationEvent,

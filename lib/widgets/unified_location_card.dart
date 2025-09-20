@@ -218,8 +218,18 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
       _PollutantInfo('TRS', metrics.trs, 'μg/m³', metrics.trs != null),
       // Additional metrics - only show if available
       if (metrics.universalAqi != null) _PollutantInfo('Universal AQI', metrics.universalAqi!.toDouble(), '', true),
-      _PollutantInfo('Wildfire Index', metrics.wildfireIndex, '', true),
       _PollutantInfo('Radon', metrics.radon, 'pCi/L', true),
+      // Detailed radon information - ALWAYS show, even if null
+      _PollutantInfo('EPA Zone', metrics.radonEpaZone?.toDouble(), '', metrics.radonEpaZone != null),
+      _PollutantInfo('Radon Risk', null, metrics.radonRiskLevel ?? 'N/A', metrics.radonRiskLevel != null),
+      _PollutantInfo('Zone Desc', null, metrics.radonZoneDescription ?? 'N/A', metrics.radonZoneDescription != null),
+      _PollutantInfo('Radon Recommendation', null, metrics.radonRecommendation ?? 'N/A', metrics.radonRecommendation != null),
+      // Detailed wildfire information - ALWAYS show, even if null
+      _PollutantInfo('Nearby Fires', metrics.wildfireNearbyFires?.toDouble(), 'fires', metrics.wildfireNearbyFires != null),
+      _PollutantInfo('Closest Fire', metrics.wildfireClosestDistance, 'km', metrics.wildfireClosestDistance != null),
+      _PollutantInfo('Fire Risk', null, metrics.wildfireRiskLevel ?? 'N/A', metrics.wildfireRiskLevel != null),
+      _PollutantInfo('Smoke Impact', null, metrics.wildfireSmokeImpact ?? 'N/A', metrics.wildfireSmokeImpact != null),
+      _PollutantInfo('Fire AQ Impact', null, metrics.wildfireAirQualityImpact ?? 'N/A', metrics.wildfireAirQualityImpact != null),
     ];
 
     return Column(
@@ -246,9 +256,17 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
 
   Widget _buildPollutantChip(_PollutantInfo pollutant) {
     final isAvailable = pollutant.isAvailable;
-    final displayValue = isAvailable
-        ? '${pollutant.value?.toStringAsFixed(1) ?? '0.0'} ${pollutant.unit}'
-        : 'N/A';
+    String displayValue;
+    
+    if (!isAvailable) {
+      displayValue = 'N/A';
+    } else if (pollutant.value != null) {
+      // Numeric value
+      displayValue = '${pollutant.value!.toStringAsFixed(1)} ${pollutant.unit}';
+    } else {
+      // Text value (unit contains the text)
+      displayValue = pollutant.unit;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/environmental_measurements.dart';
 import 'api_keys.dart';
@@ -151,9 +150,6 @@ class EnvironmentalMeasurementsService {
   }
 
   static AeroallergenMeasurements _parseGooglePollenData(Map<String, dynamic> data) {
-    int? treeCount;
-    int? grassCount;
-    int? weedCount;
     List<String> dominantTypes = [];
 
     if (data.containsKey('dailyInfo') && data['dailyInfo'].isNotEmpty) {
@@ -162,50 +158,21 @@ class EnvironmentalMeasurementsService {
 
       if (pollenTypeInfo != null) {
         for (final pollenType in pollenTypeInfo) {
-          final code = pollenType['code'] as String?;
-          final indexInfo = pollenType['indexInfo'] as Map<String, dynamic>?;
-          final value = indexInfo?['value'] ?? 0;
-
-          // Convert Google's index to approximate grains per cubic meter
-          int estimatedCount = (value * 50).round(); // Rough conversion
-
-          switch (code) {
-            case 'TREE':
-              treeCount = estimatedCount;
-              if (pollenType.containsKey('plantInfo')) {
-                final plants = pollenType['plantInfo'] as List<dynamic>;
-                for (final plant in plants.take(3)) {
-                  dominantTypes.add(plant['displayName'] as String);
-                }
-              }
-              break;
-            case 'GRASS':
-              grassCount = estimatedCount;
-              if (pollenType.containsKey('plantInfo')) {
-                final plants = pollenType['plantInfo'] as List<dynamic>;
-                for (final plant in plants.take(2)) {
-                  dominantTypes.add(plant['displayName'] as String);
-                }
-              }
-              break;
-            case 'WEED':
-              weedCount = estimatedCount;
-              if (pollenType.containsKey('plantInfo')) {
-                final plants = pollenType['plantInfo'] as List<dynamic>;
-                for (final plant in plants.take(2)) {
-                  dominantTypes.add(plant['displayName'] as String);
-                }
-              }
-              break;
+          // Only extract plant names, not fake grain counts
+          if (pollenType.containsKey('plantInfo')) {
+            final plants = pollenType['plantInfo'] as List<dynamic>;
+            for (final plant in plants.take(3)) {
+              dominantTypes.add(plant['displayName'] as String);
+            }
           }
         }
       }
     }
 
     return AeroallergenMeasurements(
-      treePollenGrainsPerM3: treeCount,
-      grassPollenGrainsPerM3: grassCount,
-      weedPollenGrainsPerM3: weedCount,
+      treePollenGrainsPerM3: null, // Google doesn't provide actual grain counts
+      grassPollenGrainsPerM3: null, // Google doesn't provide actual grain counts
+      weedPollenGrainsPerM3: null, // Google doesn't provide actual grain counts
       moldSporesPerM3: null, // Not provided by Google Pollen API
       dominantPollenTypes: dominantTypes,
       measurementSource: 'Google Pollen API',
@@ -277,12 +244,13 @@ class EnvironmentalMeasurementsService {
 
   static Future<WildfireMeasurements?> _getWildfireMeasurements(double lat, double lon) async {
     try {
-      // NASA FIRMS (Fire Information for Resource Management System) - free API
-      final url = 'https://firms.modaps.eosdis.nasa.gov/api/area/csv/c6/VIIRS_SNPP_NRT/${lon-0.5},${lat-0.5},${lon+0.5},${lat+0.5}/1';
+      // Use our backend wildfire endpoint
+      final url = 'http://localhost:3000/api/weather/wildfire?lat=$lat&lon=$lon';
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
-        return _parseNASAFirmsData(response.body, lat, lon);
+        final data = json.decode(response.body);
+        return _parseBackendWildfireData(data);
       }
     } catch (e) {
       print('Error fetching wildfire measurements: $e');
@@ -290,70 +258,18 @@ class EnvironmentalMeasurementsService {
     return null;
   }
 
-  static WildfireMeasurements _parseNASAFirmsData(String csvData, double lat, double lon) {
-    final lines = csvData.split('\n');
-    if (lines.length <= 1) {
-      // No fires detected
-      return WildfireMeasurements(
-        smokeParticulates: null,
-        visibilityKm: null,
-        activeFireCount: 0,
-        nearestFireDistanceKm: null,
-        measurementSource: 'NASA FIRMS',
-      );
-    }
-
-    // Parse CSV data (skip header)
-    final fires = <Map<String, String>>[];
-    final headers = lines[0].split(',');
-
-    for (int i = 1; i < lines.length; i++) {
-      if (lines[i].trim().isEmpty) continue;
-      final values = lines[i].split(',');
-      if (values.length >= headers.length) {
-        final fire = <String, String>{};
-        for (int j = 0; j < headers.length; j++) {
-          fire[headers[j].trim()] = values[j].trim();
-        }
-        fires.add(fire);
-      }
-    }
-
-    double? nearestDistance;
-    if (fires.isNotEmpty) {
-      // Calculate distance to nearest fire
-      double minDistance = double.infinity;
-      for (final fire in fires) {
-        final fireLat = double.tryParse(fire['latitude'] ?? '');
-        final fireLon = double.tryParse(fire['longitude'] ?? '');
-        if (fireLat != null && fireLon != null) {
-          final distance = _calculateDistance(lat, lon, fireLat, fireLon);
-          if (distance < minDistance) {
-            minDistance = distance;
-          }
-        }
-      }
-      nearestDistance = minDistance == double.infinity ? null : minDistance;
-    }
-
+  static WildfireMeasurements _parseBackendWildfireData(Map<String, dynamic> data) {
+    // Parse the backend wildfire response
+    final nearbyFires = data['nearbyFires'] as int? ?? 0;
+    final closestFireDistance = data['closestFireDistance'] as double?;
+    
     return WildfireMeasurements(
-      smokeParticulates: null, // Would need additional air quality data
-      visibilityKm: null, // Would need visibility sensors
-      activeFireCount: fires.length,
-      nearestFireDistanceKm: nearestDistance,
-      measurementSource: 'NASA FIRMS',
+      smokeParticulates: null, // Backend doesn't provide this yet
+      visibilityKm: null, // Backend doesn't provide this yet
+      activeFireCount: nearbyFires,
+      nearestFireDistanceKm: closestFireDistance,
+      measurementSource: 'HealthMap Backend (NASA FIRMS)',
     );
-  }
-
-  static double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    // Haversine formula to calculate distance between two points
-    const double earthRadius = 6371; // km
-    final double dLat = (lat2 - lat1) * pi / 180;
-    final double dLon = (lon2 - lon1) * pi / 180;
-    final double a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(lat1 * pi / 180) * cos(lat2 * pi / 180) * sin(dLon / 2) * sin(dLon / 2);
-    final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return earthRadius * c;
   }
 
   // Parse environmental data from our backend API
@@ -423,11 +339,11 @@ class EnvironmentalMeasurementsService {
       final wf = data['wildfire'] as Map<String, dynamic>;
       if (!wf.containsKey('error')) {
         wildfire = WildfireMeasurements(
-          smokeParticulates: wf['smokeImpact'] != null ? 25.0 : null, // Estimated based on smoke impact
-          visibilityKm: null,
+          smokeParticulates: null, // No real smoke data available from backend
+          visibilityKm: null, // No real visibility data available from backend
           activeFireCount: wf['nearbyFires'] ?? 0,
           nearestFireDistanceKm: wf['closestFireDistance']?.toDouble(),
-          measurementSource: 'HealthMap AI Backend',
+          measurementSource: 'NASA FIRMS (via Backend)',
         );
       }
     }
@@ -437,8 +353,22 @@ class EnvironmentalMeasurementsService {
     if (data['radon'] != null && data['radon'] is Map) {
       final r = data['radon'] as Map<String, dynamic>;
       if (!r.containsKey('error')) {
+        double? radonLevel;
+        final radonValue = r['averageRadonLevel'];
+        
+        if (radonValue is num) {
+          radonLevel = radonValue.toDouble();
+        } else if (radonValue is String && radonValue != 'N/A') {
+          try {
+            radonLevel = double.parse(radonValue);
+          } catch (e) {
+            radonLevel = null; // Keep as null if can't parse
+          }
+        }
+        // If radonValue is 'N/A' or null, radonLevel stays null
+        
         indoorEnvironment = IndoorEnvironmentMeasurements(
-          radonLevelPciL: r['averageRadonLevel']?.toDouble(),
+          radonLevelPciL: radonLevel,
           volatileOrganicCompoundsPpb: null,
           carbonMonoxidePpm: null,
           moldSporesPerM3: null,

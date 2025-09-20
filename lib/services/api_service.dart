@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'rate_limited_http_client.dart';
 
 class ApiService {
   static String get baseUrl {
@@ -55,44 +56,66 @@ class ApiService {
     required String username,
     required String password,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/register'),
-      headers: getHeaders(includeAuth: false),
-      body: jsonEncode({
-        'username': username,
-        'password': password,
-      }),
+    return await RateLimitedHttpClient.makeRequest(
+      'auth/register',
+      () async {
+        final response = await http.post(
+          Uri.parse('$baseUrl/auth/register'),
+          headers: getHeaders(includeAuth: false),
+          body: jsonEncode({
+            'username': username,
+            'password': password,
+          }),
+        );
+
+        final data = jsonDecode(response.body);
+
+        // Check for rate limiting or other HTTP errors
+        if (response.statusCode == 429) {
+          throw Exception('Too many requests. Please wait and try again.');
+        } else if (response.statusCode == 400) {
+          throw Exception(data['error'] ?? 'Registration failed. Please check your input.');
+        } else if (response.statusCode != 201) {
+          throw Exception(data['error'] ?? 'Registration failed with status ${response.statusCode}');
+        }
+
+        await _saveToken(data['token']);
+        return data;
+      },
     );
-
-    final data = jsonDecode(response.body);
-
-    if (response.statusCode == 201) {
-      await _saveToken(data['token']);
-    }
-
-    return data;
   }
 
   static Future<Map<String, dynamic>> login({
     required String username,
     required String password,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/login'),
-      headers: getHeaders(includeAuth: false),
-      body: jsonEncode({
-        'username': username,
-        'password': password,
-      }),
+    return await RateLimitedHttpClient.makeRequest(
+      'auth/login',
+      () async {
+        final response = await http.post(
+          Uri.parse('$baseUrl/auth/login'),
+          headers: getHeaders(includeAuth: false),
+          body: jsonEncode({
+            'username': username,
+            'password': password,
+          }),
+        );
+
+        final data = jsonDecode(response.body);
+
+        // Check for rate limiting or other HTTP errors
+        if (response.statusCode == 429) {
+          throw Exception('Too many requests. Please wait and try again.');
+        } else if (response.statusCode == 401) {
+          throw Exception('Invalid credentials. Please check your username and password.');
+        } else if (response.statusCode != 200) {
+          throw Exception(data['error'] ?? 'Login failed with status ${response.statusCode}');
+        }
+
+        await _saveToken(data['token']);
+        return data;
+      },
     );
-
-    final data = jsonDecode(response.body);
-
-    if (response.statusCode == 200) {
-      await _saveToken(data['token']);
-    }
-
-    return data;
   }
 
   static Future<void> logout() async {

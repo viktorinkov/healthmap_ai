@@ -77,6 +77,19 @@ class AirQualityMetrics {
   final double wildfireIndex; // 0-100 scale
   final double radon; // pCi/L
   final int? universalAqi; // Universal Air Quality Index (0-500)
+  
+  // Enhanced radon details
+  final String? radonRiskLevel; // 'Low', 'Moderate', 'High'
+  final int? radonEpaZone; // 1, 2, 3
+  final String? radonZoneDescription;
+  final String? radonRecommendation;
+  
+  // Enhanced wildfire details
+  final int? wildfireNearbyFires; // Count of fires within radius
+  final double? wildfireClosestDistance; // km
+  final String? wildfireRiskLevel; // 'Low', 'Moderate', 'High', 'Critical'
+  final String? wildfireSmokeImpact; // 'Light', 'Moderate', 'Heavy', 'Severe'
+  final String? wildfireAirQualityImpact;
 
   const AirQualityMetrics({
     required this.pm25,
@@ -95,6 +108,15 @@ class AirQualityMetrics {
     required this.wildfireIndex,
     required this.radon,
     this.universalAqi,
+    this.radonRiskLevel,
+    this.radonEpaZone,
+    this.radonZoneDescription,
+    this.radonRecommendation,
+    this.wildfireNearbyFires,
+    this.wildfireClosestDistance,
+    this.wildfireRiskLevel,
+    this.wildfireSmokeImpact,
+    this.wildfireAirQualityImpact,
   });
 
   factory AirQualityMetrics.fromJson(Map<String, dynamic> json) => _$AirQualityMetricsFromJson(json);
