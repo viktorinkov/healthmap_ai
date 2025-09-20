@@ -13,9 +13,6 @@ class HealthInsightsTab extends StatefulWidget {
 }
 
 class _HealthInsightsTabState extends State<HealthInsightsTab> {
-  final HealthInsightsService _healthService = HealthInsightsService();
-  final UnifiedHealthService _unifiedService = UnifiedHealthService();
-  
   bool _isLoading = true;
   String? _error;
   
@@ -47,21 +44,38 @@ class _HealthInsightsTabState extends State<HealthInsightsTab> {
       // For demo purposes, using a sample user ID
       const userId = 'user_001';
       
-      // Fetch all health data in parallel
-      final results = await Future.wait([
-        _healthService.getHeartRateData(userId),
-        _healthService.getActivityData(userId),
-        _healthService.getHealthSummary(userId),
-        _healthService.getDailyInsights(userId),
-        _unifiedService.getUnifiedHealthInsights(userId),
-      ]);
+      // Fetch health data using static methods with longer ranges for meaningful data
+      _heartRateData = await HealthInsightsService.getHeartRateData(
+        userId: userId,
+        startDate: '2025-08-01',  // Start from August to catch our sample data
+        endDate: '2025-09-30'     // End date covers current period
+      );
+      _activityData = await HealthInsightsService.getActivityData(
+        userId: userId, 
+        days: 60  // Look back 60 days to catch sample data
+      );
+      _healthSummary = await HealthInsightsService.getHealthSummary(
+        userId: userId,
+        days: 60  // Look back 60 days to catch sample data
+      );
+      
+      // For daily insights, we need air quality data
+      final airQualityData = {'status': 'good', 'aqi': 50, 'pm25': 10.5};
+      if (_userProfile != null) {
+        _dailyInsights = await HealthInsightsService.getDailyHealthSummary(
+          userId: userId,
+          airQualityData: airQualityData,
+          userProfile: _userProfile!,
+        );
+      }
+      
+      // Get unified insights
+      _unifiedInsights = await UnifiedHealthService.getUnifiedRecommendation(
+        userId: userId,
+        currentLocation: {'latitude': 29.7604, 'longitude': -95.3698},
+      );
       
       setState(() {
-        _heartRateData = results[0];
-        _activityData = results[1];
-        _healthSummary = results[2];
-        _dailyInsights = results[3];
-        _unifiedInsights = results[4];
         _isLoading = false;
       });
     } catch (e) {
@@ -148,8 +162,23 @@ class _HealthInsightsTabState extends State<HealthInsightsTab> {
   }
 
   Widget _buildHealthScoreCard() {
-    final healthScore = _healthSummary?['health_score'] ?? 0;
-    final trend = _healthSummary?['trend'] ?? 'stable';
+    // Calculate health score from available data
+    final summary = _healthSummary?['summary'] ?? {};
+    final avgSteps = (double.tryParse(summary['avg_steps']?.toString() ?? '0') ?? 0.0).round();
+    final avgHeartRate = (double.tryParse(summary['avg_heart_rate']?.toString() ?? '70') ?? 70.0).round();
+    final avgSpo2 = (double.tryParse(summary['avg_spo2']?.toString() ?? '98') ?? 98.0).round();
+    
+    // Simple health score calculation based on available metrics
+    int healthScore = 50; // Base score
+    if (avgSteps >= 10000) healthScore += 30;
+    else if (avgSteps >= 7500) healthScore += 20;
+    else if (avgSteps >= 5000) healthScore += 10;
+    
+    if (avgHeartRate >= 60 && avgHeartRate <= 100) healthScore += 15;
+    if (avgSpo2 >= 95) healthScore += 5;
+    
+    healthScore = healthScore.clamp(0, 100);
+    final trend = 'stable'; // Default trend
     
     return Card(
       elevation: 2,
@@ -231,8 +260,8 @@ class _HealthInsightsTabState extends State<HealthInsightsTab> {
   }
 
   Widget _buildDailyInsightsCard() {
-    final insights = _dailyInsights?['insights'] as List<dynamic>? ?? [];
-    final generatedAt = _dailyInsights?['generated_at'] ?? DateTime.now().toIso8601String();
+    final insight = _dailyInsights?['insight'] ?? 'No insights available. Make sure both backends are running.';
+    final insights = insight is String ? [insight] : (insight is List ? insight : [insight.toString()]);
     
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -329,9 +358,34 @@ class _HealthInsightsTabState extends State<HealthInsightsTab> {
   }
 
   Widget _buildHeartRateCard() {
-    final currentHr = _heartRateData?['current_heart_rate'] ?? 0;
-    final avgHr = _heartRateData?['average_heart_rate'] ?? 0;
-    final restingHr = _heartRateData?['resting_heart_rate'] ?? 0;
+    final heartRateList = _heartRateData?['data'] as List<dynamic>? ?? [];
+    
+    int currentHr = 0;
+    int avgHr = 0;
+    int restingHr = 0;
+    
+    if (heartRateList.isNotEmpty) {
+      // Current HR is the most recent reading
+      currentHr = (double.tryParse(heartRateList.first['heart_rate']?.toString() ?? '0') ?? 0.0).round();
+      
+      // Calculate average HR from all readings
+      final hrValues = heartRateList
+          .map((e) => double.tryParse(e['heart_rate']?.toString() ?? '0') ?? 0.0)
+          .where((hr) => hr > 0)
+          .toList();
+      
+      if (hrValues.isNotEmpty) {
+        avgHr = (hrValues.reduce((a, b) => a + b) / hrValues.length).round();
+        
+        // Estimate resting HR as the lowest 20% of readings
+        hrValues.sort();
+        final restingCount = (hrValues.length * 0.2).ceil();
+        if (restingCount > 0) {
+          final restingValues = hrValues.take(restingCount);
+          restingHr = (restingValues.reduce((a, b) => a + b) / restingValues.length).round();
+        }
+      }
+    }
     
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -368,9 +422,31 @@ class _HealthInsightsTabState extends State<HealthInsightsTab> {
   }
 
   Widget _buildActivityCard() {
-    final steps = _activityData?['steps'] ?? 0;
-    final calories = _activityData?['calories'] ?? 0;
-    final activeMinutes = _activityData?['active_minutes'] ?? 0;
+    final activityList = _activityData?['data'] as List<dynamic>? ?? [];
+    
+    int totalSteps = 0;
+    int totalCalories = 0;
+    double totalDistance = 0.0;
+    
+    if (activityList.isNotEmpty) {
+      // Calculate totals from recent activity data
+      for (final activity in activityList) {
+        totalSteps += ((activity['steps'] ?? 0) as num).round();
+        totalCalories += ((activity['calories'] ?? 0) as num).round();
+        totalDistance += ((activity['distance'] ?? 0.0) as num).toDouble();
+      }
+      
+      // Get averages per day
+      final days = activityList.length;
+      if (days > 0) {
+        totalSteps = (totalSteps / days).round();
+        totalCalories = (totalCalories / days).round();
+        totalDistance = totalDistance / days;
+      }
+    }
+    
+    // Estimate active minutes based on steps (rough calculation)
+    final activeMinutes = (totalSteps / 120).round(); // ~120 steps per minute of activity
     
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -395,8 +471,8 @@ class _HealthInsightsTabState extends State<HealthInsightsTab> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildMetricColumn('Steps', steps.toString(), '', Colors.blue),
-                _buildMetricColumn('Calories', calories.toString(), 'cal', Colors.orange),
+                _buildMetricColumn('Steps', totalSteps.toString(), '', Colors.blue),
+                _buildMetricColumn('Calories', totalCalories.toString(), 'cal', Colors.orange),
                 _buildMetricColumn('Active', activeMinutes.toString(), 'min', Colors.green),
               ],
             ),

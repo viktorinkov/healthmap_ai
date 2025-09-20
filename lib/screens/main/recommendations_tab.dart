@@ -15,9 +15,6 @@ class RecommendationsTab extends StatefulWidget {
 }
 
 class _RecommendationsTabState extends State<RecommendationsTab> {
-  final HealthInsightsService _healthService = HealthInsightsService();
-  final UnifiedHealthService _unifiedService = UnifiedHealthService();
-  
   UserHealthProfile? _userProfile;
   List<PinnedLocation> _pinnedLocations = [];
   Map<String, AirQualityData> _locationAirQuality = {};
@@ -51,8 +48,11 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
       // Try to load health data from Python backend
       try {
         const userId = 'user_001'; // Demo user ID
-        _healthData = await _healthService.getHealthSummary(userId);
-        _unifiedInsights = await _unifiedService.getUnifiedHealthInsights(userId);
+        _healthData = await HealthInsightsService.getHealthSummary(userId: userId);
+        _unifiedInsights = await UnifiedHealthService.getUnifiedRecommendation(
+          userId: userId,
+          currentLocation: {'latitude': 29.7604, 'longitude': -95.3698},
+        );
       } catch (e) {
         debugPrint('Health data not available: $e');
         // Continue without health data
@@ -280,18 +280,25 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
     }
 
     // Add health-specific insights if available
-    if (_healthData != null) {
-      final healthScore = _healthData!['health_score'] ?? 0;
-      final trend = _healthData!['trend'] ?? 'stable';
+    if (_healthData != null && _healthData!['success'] == true) {
+      final summary = _healthData!['summary'] ?? {};
+      final avgSteps = (double.tryParse(summary['avg_steps']?.toString() ?? '0') ?? 0.0).round();
+      final avgHeartRate = (double.tryParse(summary['avg_heart_rate']?.toString() ?? '0') ?? 0.0).round();
       
-      if (healthScore < 60) {
-        recommendations.add('⚠️ Your health score is ${healthScore}/100. Focus on improving your wellness routine.');
-      } else if (healthScore >= 80) {
-        recommendations.add('✅ Great health score: ${healthScore}/100! Keep up the good work.');
+      if (avgSteps > 0) {
+        if (avgSteps >= 10000) {
+          recommendations.add('🚶‍♀️ Great activity level! You\'re averaging $avgSteps steps daily.');
+        } else if (avgSteps >= 7500) {
+          recommendations.add('👍 Good activity level with $avgSteps daily steps. Try to reach 10,000!');
+        } else {
+          recommendations.add('📈 Consider increasing activity. Current average: $avgSteps steps/day.');
+        }
       }
       
-      if (trend == 'declining') {
-        recommendations.add('📉 Your health metrics show a declining trend. Consider consulting with a healthcare provider.');
+      if (avgHeartRate > 0) {
+        if (avgHeartRate >= 60 && avgHeartRate <= 100) {
+          recommendations.add('❤️ Heart rate looks healthy (avg: $avgHeartRate bpm).');
+        }
       }
     }
 
@@ -822,9 +829,11 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
               children: [
                 const Icon(Icons.lightbulb, color: Colors.orange),
                 const SizedBox(width: 8),
-                Text(
-                  'Personalized Recommendations',
-                  style: Theme.of(context).textTheme.titleLarge,
+                Expanded(
+                  child: Text(
+                    'Personalized Recommendations',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                 ),
               ],
             ),

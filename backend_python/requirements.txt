@@ -14,9 +14,7 @@ numpy==1.26.2
 python-dotenv==1.0.0
 
 # Wearipedia - Fitbit data extraction
-# Note: Wearipedia must be cloned and installed separately:
-# git clone https://github.com/Stanford-Health/wearipedia.git
-# cd wearipedia && pip install -e .
+wearipedia
 
 # Google Gemini API for health insights
 google-generativeai==0.8.5
