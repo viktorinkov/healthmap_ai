@@ -4,6 +4,8 @@ import '../../models/air_quality.dart';
 import '../../models/pinned_location.dart';
 import '../../services/database_service.dart';
 import '../../services/gemini_service.dart';
+import '../../services/health_insights_service.dart';
+import '../../services/unified_health_service.dart';
 
 class RecommendationsTab extends StatefulWidget {
   const RecommendationsTab({Key? key}) : super(key: key);
@@ -13,11 +15,16 @@ class RecommendationsTab extends StatefulWidget {
 }
 
 class _RecommendationsTabState extends State<RecommendationsTab> {
+  final HealthInsightsService _healthService = HealthInsightsService();
+  final UnifiedHealthService _unifiedService = UnifiedHealthService();
+  
   UserHealthProfile? _userProfile;
   List<PinnedLocation> _pinnedLocations = [];
   Map<String, AirQualityData> _locationAirQuality = {};
   AirQualityData? _currentLocationAirQuality;
   List<String> _personalizedRecommendations = [];
+  Map<String, dynamic>? _healthData;
+  Map<String, dynamic>? _unifiedInsights;
   bool _isLoading = true;
   bool _isGeneratingRecommendations = false;
 
@@ -40,6 +47,16 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
 
       // Load current location air quality data
       await _loadCurrentLocationAirQuality();
+
+      // Try to load health data from Python backend
+      try {
+        const userId = 'user_001'; // Demo user ID
+        _healthData = await _healthService.getHealthSummary(userId);
+        _unifiedInsights = await _unifiedService.getUnifiedHealthInsights(userId);
+      } catch (e) {
+        debugPrint('Health data not available: $e');
+        // Continue without health data
+      }
 
       // Generate personalized recommendations
       await _generatePersonalizedRecommendations();
@@ -256,6 +273,27 @@ class _RecommendationsTabState extends State<RecommendationsTab> {
 
   List<String> _generatePinnedLocationRecommendations() {
     final recommendations = <String>[];
+
+    // Add unified health insights if available
+    if (_unifiedInsights != null && _unifiedInsights!['recommendation'] != null) {
+      recommendations.add('🌟 ${_unifiedInsights!['recommendation']}');
+    }
+
+    // Add health-specific insights if available
+    if (_healthData != null) {
+      final healthScore = _healthData!['health_score'] ?? 0;
+      final trend = _healthData!['trend'] ?? 'stable';
+      
+      if (healthScore < 60) {
+        recommendations.add('⚠️ Your health score is ${healthScore}/100. Focus on improving your wellness routine.');
+      } else if (healthScore >= 80) {
+        recommendations.add('✅ Great health score: ${healthScore}/100! Keep up the good work.');
+      }
+      
+      if (trend == 'declining') {
+        recommendations.add('📉 Your health metrics show a declining trend. Consider consulting with a healthcare provider.');
+      }
+    }
 
     if (_pinnedLocations.isEmpty) {
       recommendations.add('📌 Add locations you visit frequently to get personalized air quality insights.');

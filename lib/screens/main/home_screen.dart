@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'map_tab.dart';
 import 'recommendations_tab.dart';
+import 'health_insights_tab.dart';
 import 'daily_tasks_tab.dart';
 import 'profile_tab.dart';
 
@@ -17,6 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = [
     const MapTab(),
     const RecommendationsTab(),
+    const HealthInsightsTab(),
     const DailyTasksTab(),
     const ProfileTab(),
   ];
@@ -29,6 +31,10 @@ class _HomeScreenState extends State<HomeScreen> {
     const BottomNavigationBarItem(
       icon: Icon(Icons.lightbulb),
       label: 'Recommendations',
+    ),
+    const BottomNavigationBarItem(
+      icon: Icon(Icons.favorite),
+      label: 'Health',
     ),
     const BottomNavigationBarItem(
       icon: Icon(Icons.task_alt),
