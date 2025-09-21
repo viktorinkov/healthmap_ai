@@ -98,7 +98,7 @@ router.get('/historical',
       const historicalData = await weatherService.getHistoricalWeatherByCoordinates(latitude, longitude, daysBack);
 
       if (!historicalData || historicalData.length === 0) {
-        return res.json({
+        return res.status(404).json({
           error: 'Historical weather data not available for this location'
         });
       }

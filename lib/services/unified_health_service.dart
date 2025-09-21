@@ -6,7 +6,7 @@ import 'api_service.dart';
 import 'health_insights_service.dart';
 
 class UnifiedHealthService {
-  static const String pythonBackendUrl = 'http://10.0.2.2:5001/api';
+  static const String pythonBackendUrl = 'http://168.5.158.82:5001/api';
   
   /// Get unified health recommendations from Python backend's daily-summary endpoint
   /// This calls the actual Gemini AI service that analyzes real Fitbit data

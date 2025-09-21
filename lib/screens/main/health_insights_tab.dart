@@ -511,7 +511,7 @@ class _HealthInsightsTabState extends State<HealthInsightsTab> {
                 const Icon(Icons.integration_instructions, color: Colors.purple),
                 const SizedBox(width: 8),
                 Text(
-                  'Unified Health & Environment',
+                  'AI Coach',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),

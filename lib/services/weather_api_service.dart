@@ -87,16 +87,16 @@ class WeatherApiService {
 
         // Backend returns data directly, not nested in 'weather'
         return WeatherData(
-          temperature: (data['temperature'] ?? 0.0).toDouble(),
-          feelsLike: (data['feelsLike'] ?? 0.0).toDouble(),
-          humidity: (data['humidity'] ?? 0.0).toDouble(),
-          pressure: (data['pressure'] ?? 0.0).toDouble(),
-          windSpeed: (data['windSpeed'] ?? 0.0).toDouble(),
-          windDirection: (data['windDirection'] ?? 0.0).toDouble(),
-          uvIndex: (data['uvIndex'] ?? 0.0).toDouble(),
-          visibility: (data['visibility'] ?? 10000.0).toDouble(),
-          cloudCover: (data['clouds'] ?? 0.0).toDouble(),
-          dewPoint: (data['dewPoint'] ?? 0.0).toDouble(),
+          temperature: data['temperature'] != null ? (data['temperature']).toDouble() : 0.0,
+          feelsLike: data['feelsLike'] != null ? (data['feelsLike']).toDouble() : 0.0,
+          humidity: data['humidity'] != null ? (data['humidity']).toDouble() : 0.0,
+          pressure: data['pressure'] != null ? (data['pressure']).toDouble() : 0.0,
+          windSpeed: data['windSpeed'] != null ? (data['windSpeed']).toDouble() : 0.0,
+          windDirection: data['windDirection'] != null ? (data['windDirection']).toDouble() : 0.0,
+          uvIndex: data['uvIndex'] != null ? (data['uvIndex']).toDouble() : 0.0,
+          visibility: data['visibility'] != null ? (data['visibility']).toDouble() : 10000.0,
+          cloudCover: data['clouds'] != null ? (data['clouds']).toDouble() : 0.0,
+          dewPoint: data['dewPoint'] != null ? (data['dewPoint']).toDouble() : 0.0,
           description: data['description'] ?? 'Unknown',
           icon: data['icon'] ?? '01d',
           timestamp: data['timestamp'] != null
@@ -154,16 +154,16 @@ class WeatherApiService {
         if (data['hourly'] != null) {
           for (final hour in data['hourly']) {
             hourlyData.add(WeatherData(
-              temperature: (hour['temperature'] ?? 0.0).toDouble(),
-              feelsLike: (hour['feelsLike'] ?? 0.0).toDouble(),
-              humidity: (hour['humidity'] ?? 0.0).toDouble(),
-              pressure: (hour['pressure'] ?? 0.0).toDouble(),
-              windSpeed: (hour['windSpeed'] ?? 0.0).toDouble(),
-              windDirection: (hour['windDirection'] ?? 0.0).toDouble(),
-              uvIndex: 0.0, // UV index not available in hourly forecast
-              visibility: (hour['visibility'] ?? 10000.0).toDouble(),
-              cloudCover: (hour['clouds'] ?? 0.0).toDouble(),
-              dewPoint: 0.0, // Dew point not available in hourly forecast
+              temperature: hour['temperature'] != null ? (hour['temperature']).toDouble() : 0.0,
+              feelsLike: hour['feelsLike'] != null ? (hour['feelsLike']).toDouble() : 0.0,
+              humidity: hour['humidity'] != null ? (hour['humidity']).toDouble() : 0.0,
+              pressure: hour['pressure'] != null ? (hour['pressure']).toDouble() : 0.0,
+              windSpeed: hour['windSpeed'] != null ? (hour['windSpeed']).toDouble() : 0.0,
+              windDirection: hour['windDirection'] != null ? (hour['windDirection']).toDouble() : 0.0,
+              uvIndex: hour['uvIndex'] != null ? (hour['uvIndex']).toDouble() : 0.0,
+              visibility: hour['visibility'] != null ? (hour['visibility']).toDouble() : 10000.0,
+              cloudCover: hour['cloudCover'] != null ? (hour['cloudCover']).toDouble() : 0.0,
+              dewPoint: hour['dewPoint'] != null ? (hour['dewPoint']).toDouble() : 0.0,
               description: hour['description'] ?? 'Unknown',
               icon: hour['icon'] ?? '01d',
               timestamp: DateTime.parse(hour['datetime']),
@@ -181,24 +181,31 @@ class WeatherApiService {
         // Parse daily forecast
         if (data['daily'] != null) {
           for (final day in data['daily']) {
+            // Skip days without valid humidity data
+            final humidity = day['humidity'] ?? day['avgHumidity'];
+            if (humidity == null) {
+              debugPrint('Skipping day with no humidity data: ${day['date'] ?? day['timestamp']}');
+              continue;
+            }
+
             dailyData.add(WeatherData(
-              temperature: (day['maxTemp'] ?? 0.0).toDouble(),
-              minTemp: (day['minTemp'] ?? 0.0).toDouble(),
-              maxTemp: (day['maxTemp'] ?? 0.0).toDouble(),
-              humidity: (day['avgHumidity'] ?? 0.0).toDouble(),
+              temperature: day['temperature'] != null ? (day['temperature']).toDouble() : (day['maxTemp'] != null && day['minTemp'] != null ? ((day['maxTemp'] + day['minTemp']) / 2).toDouble() : 0.0),
+              minTemp: day['minTemp'] != null ? (day['minTemp']).toDouble() : 0.0,
+              maxTemp: day['maxTemp'] != null ? (day['maxTemp']).toDouble() : 0.0,
+              humidity: humidity.toDouble(),
               description: day['description'] ?? 'Unknown',
               icon: day['icon'] ?? '01d',
-              timestamp: DateTime.parse(day['date']),
-              precipitationProbability: (day['maxPop'] ?? 0.0).toDouble(),
-              // These fields are not in daily summary, so use defaults
-              feelsLike: 0.0,
-              pressure: 0.0,
-              windSpeed: 0.0,
-              windDirection: 0.0,
-              uvIndex: 0.0,
-              visibility: 10000.0,
-              cloudCover: 0.0,
-              dewPoint: 0.0,
+              timestamp: DateTime.parse(day['date'] ?? day['timestamp'] ?? DateTime.now().toIso8601String()),
+              precipitationProbability: day['precipitationProbability'] != null ? (day['precipitationProbability']).toDouble() : (day['maxPop'] != null ? (day['maxPop']).toDouble() : 0.0),
+              // Parse additional fields with fallbacks
+              feelsLike: day['feelsLike'] != null ? (day['feelsLike']).toDouble() : (day['temperature'] != null ? (day['temperature']).toDouble() : 0.0),
+              pressure: day['pressure'] != null ? (day['pressure']).toDouble() : 1013.25,
+              windSpeed: day['windSpeed'] != null ? (day['windSpeed']).toDouble() : 0.0,
+              windDirection: day['windDirection'] != null ? (day['windDirection']).toDouble() : 0.0,
+              uvIndex: day['uvIndex'] != null ? (day['uvIndex']).toDouble() : 0.0,
+              visibility: day['visibility'] != null ? (day['visibility']).toDouble() : 10000.0,
+              cloudCover: day['cloudCover'] != null ? (day['cloudCover']).toDouble() : 0.0,
+              dewPoint: day['dewPoint'] != null ? (day['dewPoint']).toDouble() : 0.0,
             ));
           }
         }
@@ -251,17 +258,23 @@ class WeatherApiService {
 
         if (historyList != null && historyList is List) {
           for (final item in historyList) {
+            // Skip items without valid data
+            if (item['humidity'] == null) {
+              debugPrint('Skipping historical item with no humidity data: ${item['timestamp']}');
+              continue;
+            }
+
             historicalData.add(WeatherData(
-              temperature: (item['temperature'] ?? 0.0).toDouble(),
-              feelsLike: (item['feelsLike'] ?? item['feels_like'] ?? item['temperature'] ?? 0.0).toDouble(),
-              humidity: (item['humidity'] ?? 0.0).toDouble(),
-              pressure: (item['pressure'] ?? 0.0).toDouble(),
-              windSpeed: (item['windSpeed'] ?? item['wind_speed'] ?? 0.0).toDouble(),
-              windDirection: (item['windDirection'] ?? item['wind_direction'] ?? 0.0).toDouble(),
-              uvIndex: (item['uvIndex'] ?? item['uv_index'] ?? 0.0).toDouble(),
-              visibility: (item['visibility'] ?? 10000.0).toDouble(),
-              cloudCover: (item['cloudCover'] ?? item['cloud_cover'] ?? 0.0).toDouble(),
-              dewPoint: (item['dewPoint'] ?? item['dew_point'] ?? 0.0).toDouble(),
+              temperature: item['temperature'] != null ? (item['temperature']).toDouble() : 0.0,
+              feelsLike: item['feelsLike'] != null ? (item['feelsLike']).toDouble() : (item['temperature'] != null ? (item['temperature']).toDouble() : 0.0),
+              humidity: (item['humidity']).toDouble(),
+              pressure: item['pressure'] != null ? (item['pressure']).toDouble() : 1013.25,
+              windSpeed: item['windSpeed'] != null ? (item['windSpeed']).toDouble() : 0.0,
+              windDirection: item['windDirection'] != null ? (item['windDirection']).toDouble() : 0.0,
+              uvIndex: item['uvIndex'] != null ? (item['uvIndex']).toDouble() : 0.0,
+              visibility: item['visibility'] != null ? (item['visibility']).toDouble() : 10000.0,
+              cloudCover: item['cloudCover'] != null ? (item['cloudCover']).toDouble() : 0.0,
+              dewPoint: item['dewPoint'] != null ? (item['dewPoint']).toDouble() : 0.0,
               description: item['description'] ?? 'Unknown',
               icon: item['icon'] ?? '01d',
               timestamp: DateTime.parse(item['timestamp'] ?? DateTime.now().toIso8601String()),

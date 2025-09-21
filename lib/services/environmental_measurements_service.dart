@@ -245,7 +245,7 @@ class EnvironmentalMeasurementsService {
   static Future<WildfireMeasurements?> _getWildfireMeasurements(double lat, double lon) async {
     try {
       // Use our backend wildfire endpoint
-      final url = 'http://localhost:3000/api/weather/wildfire?lat=$lat&lon=$lon';
+      final url = 'http://168.5.158.82:3000/api/weather/wildfire?lat=$lat&lon=$lon';
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {

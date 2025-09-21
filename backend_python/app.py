@@ -67,7 +67,8 @@ def initialize_pool():
         logger.info("Database connection pool initialized")
     except Exception as e:
         logger.error(f"Failed to initialize connection pool: {e}")
-        raise
+        logger.warning("Running without database - some features may be limited")
+        connection_pool = None
 
 def get_db_connection():
     """Get connection from pool with proper error handling"""
@@ -75,7 +76,15 @@ def get_db_connection():
     if not connection_pool:
         with pool_lock:
             if not connection_pool:
-                initialize_pool()
+                try:
+                    initialize_pool()
+                except Exception as e:
+                    logger.error(f"Cannot initialize database pool: {e}")
+                    return None
+    
+    if not connection_pool:
+        logger.warning("No database connection pool available")
+        return None
     
     try:
         conn = connection_pool.getconn()
@@ -85,7 +94,7 @@ def get_db_connection():
         return conn
     except Exception as e:
         logger.error(f"Failed to get database connection: {e}")
-        raise
+        return None
 
 def return_db_connection(conn):
     """Return connection to pool"""
@@ -112,10 +121,16 @@ try:
     logger.info("Services initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize services: {e}")
+    logger.warning("Running without database services - using demo mode")
+    db_manager = None
     insight_generator = None
 
 # Initialize connection pool on startup
-initialize_pool()
+try:
+    initialize_pool()
+except Exception as e:
+    logger.error(f"Database initialization failed: {e}")
+    logger.info("Continuing without database...")
 
 # Add periodic cleanup
 def periodic_cleanup():
@@ -225,14 +240,22 @@ def get_activity_data(user_id):
                 ORDER BY a.datetime DESC
                 LIMIT 2000
             """, (user_id, start_date))
-            
+
             results = cursor.fetchall()
-            
+
+            # Convert Decimal distance to float for JSON serialization
+            processed_results = []
+            for row in results:
+                row_dict = dict(row)
+                if 'distance' in row_dict and row_dict['distance'] is not None:
+                    row_dict['distance'] = float(row_dict['distance'])
+                processed_results.append(row_dict)
+
             response_data = {
                 'success': True,
                 'user_id': user_id,
-                'data': [dict(row) for row in results],
-                'count': len(results)
+                'data': processed_results,
+                'count': len(processed_results)
             }
             
             # Cache result

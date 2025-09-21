@@ -5,7 +5,7 @@ import '../models/run_coach_models.dart';
 import '../models/user_health_profile.dart';
 
 class RunCoachService {
-  static const String baseUrl = 'http://10.0.2.2:5001/api/run-coach';
+  static const String baseUrl = 'http://168.5.158.82:5001/api/run-coach';
   
   // Mock user profile - in production, this would come from user settings
   final Map<String, dynamic> _mockUserProfile = {

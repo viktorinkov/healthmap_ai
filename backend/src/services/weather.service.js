@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { getOne, runQuery, getAll } = require('../config/database');
+const { getOne, runQuery } = require('../config/database');
 
 class WeatherService {
   constructor() {
@@ -10,14 +10,7 @@ class WeatherService {
   // Get current weather data for a location using Google Weather API
   async getCurrentWeather(latitude, longitude, locationName = null) {
     try {
-      // Check cache first
-      const cacheKey = `weather_${latitude.toFixed(4)}_${longitude.toFixed(4)}`;
-      const cached = await this.getFromCache(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-
-      // Fetch current weather from Google Weather API
+      // Always fetch fresh data from Google Weather API - no caching
       const response = await axios.get(`${this.googleWeatherBaseUrl}/currentConditions:lookup`, {
         params: {
           key: this.googleApiKey,
@@ -31,30 +24,13 @@ class WeatherService {
 
       if (response.status === 200 && response.data) {
         const data = this.transformGoogleWeatherData(response.data, locationName);
-
-        // Cache the result for 1 hour
-        await this.saveToCache(cacheKey, JSON.stringify(data), 3600);
-
         return data;
       } else {
         throw new Error(`Google Weather API returned status ${response.status}`);
       }
     } catch (error) {
       console.error('Error fetching weather from Google API:', error);
-
-      // Return last known data if available
-      const fallback = await getOne(
-        `SELECT * FROM weather_history
-         WHERE pin_id IN (SELECT id FROM pins WHERE latitude = ? AND longitude = ?)
-         ORDER BY timestamp DESC LIMIT 1`,
-        [latitude, longitude]
-      );
-
-      if (fallback) {
-        return fallback;
-      }
-
-      // If no fallback available, return null to indicate no data
+      // Return null - no fallbacks, only real API data
       return null;
     }
   }
@@ -62,13 +38,7 @@ class WeatherService {
   // Get weather forecast using Google Weather API
   async getWeatherForecast(latitude, longitude, days = 5, locationName = null) {
     try {
-      const cacheKey = `forecast_${latitude.toFixed(4)}_${longitude.toFixed(4)}_${days}`;
-      const cached = await this.getFromCache(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-
-      // Fetch forecast from Google Weather API
+      // Always fetch fresh data from Google Weather API - no caching
       const response = await axios.get(`${this.googleWeatherBaseUrl}/forecast/days:lookup`, {
         params: {
           key: this.googleApiKey,
@@ -82,11 +52,14 @@ class WeatherService {
       });
 
       if (response.status === 200 && response.data) {
+        // Add debug logging for humidity data
+        console.log('Google Weather API forecast response sample:', {
+          forecastDaysCount: response.data.forecastDays?.length,
+          sampleDayHumidity: response.data.forecastDays?.[0]?.daytimeForecast?.relativeHumidity,
+          sampleNightHumidity: response.data.forecastDays?.[0]?.nighttimeForecast?.relativeHumidity
+        });
+        
         const data = this.transformGoogleForecastData(response.data, locationName);
-
-        // Cache the result for 1 hour
-        await this.saveToCache(cacheKey, JSON.stringify(data), 3600);
-
         return data;
       } else {
         throw new Error(`Google Weather API returned status ${response.status}`);
@@ -100,13 +73,7 @@ class WeatherService {
   // Get hourly weather forecast using Google Weather API
   async getHourlyForecast(latitude, longitude, hours = 240, locationName = null) {
     try {
-      const cacheKey = `hourly_${latitude.toFixed(4)}_${longitude.toFixed(4)}_${hours}`;
-      const cached = await this.getFromCache(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-
-      // Fetch hourly forecast from Google Weather API
+      // Always fetch fresh data from Google Weather API - no caching
       const response = await axios.get(`${this.googleWeatherBaseUrl}/forecast/hours:lookup`, {
         params: {
           key: this.googleApiKey,
@@ -121,10 +88,6 @@ class WeatherService {
 
       if (response.status === 200 && response.data) {
         const data = this.transformGoogleHourlyForecastData(response.data, locationName);
-
-        // Cache the result for 1 hour
-        await this.saveToCache(cacheKey, JSON.stringify(data), 3600);
-
         return data;
       } else {
         throw new Error(`Google Weather API returned status ${response.status}`);
@@ -209,9 +172,20 @@ class WeatherService {
       const nighttimeForecast = day.nighttimeForecast || {};
 
       // Average humidity between day and night
-      const dayHumidity = daytimeForecast.relativeHumidity || 50;
-      const nightHumidity = nighttimeForecast.relativeHumidity || 50;
-      const avgHumidity = (dayHumidity + nightHumidity) / 2;
+      const dayHumidity = daytimeForecast.relativeHumidity;
+      const nightHumidity = nighttimeForecast.relativeHumidity;
+
+      let avgHumidity;
+      if (dayHumidity !== undefined && nightHumidity !== undefined) {
+        avgHumidity = Math.round((dayHumidity + nightHumidity) / 2);
+      } else if (dayHumidity !== undefined) {
+        avgHumidity = Math.round(dayHumidity);
+      } else if (nightHumidity !== undefined) {
+        avgHumidity = Math.round(nightHumidity);
+      } else {
+        console.warn(`No humidity data available for forecast day`);
+        avgHumidity = null; // Don't default to fake value
+      }
 
       // Use daytime wind data
       const windSpeed = daytimeForecast.wind?.speed?.value || 0;
@@ -278,17 +252,17 @@ class WeatherService {
   // Transform Google Weather API hourly forecast response to our format
   transformGoogleHourlyForecastData(data, locationName = null) {
     const hourlyData = [];
-    const forecastHours = data.forecasts || [];
+    const forecastHours = data.forecasts || data.hourlyForecasts || [];
 
     for (const hour of forecastHours) {
       const temperature = hour.temperature?.degrees || 0;
       const feelsLike = hour.feelsLikeTemperature?.degrees || temperature;
-      const humidity = hour.relativeHumidity || 0;
+      const humidity = hour.relativeHumidity !== undefined ? Math.round(hour.relativeHumidity) : null;
       const pressure = hour.airPressure?.meanSeaLevelMillibars || 0;
       const windSpeed = hour.wind?.speed?.value || 0;
       const windDirection = hour.wind?.direction?.degrees || 0;
       const uvIndex = hour.uvIndex || 0;
-      const visibility = (hour.visibility?.distance || 10) * 1000;
+      const visibility = hour.visibility?.distance ? hour.visibility.distance * 1000 : 10000;
       const cloudCover = hour.cloudCover || 0;
       const dewPoint = hour.dewPoint?.degrees || 0;
 
@@ -616,43 +590,245 @@ class WeatherService {
   // Get historical weather data for coordinates using Google Weather API
   async getHistoricalWeatherByCoordinates(latitude, longitude, days = 7) {
     try {
-      // Google Weather API doesn't directly support historical data
-      // For now, return an error message indicating historical data is not available
-      // In a real implementation, you would need a different weather provider or database of historical data
-      console.log(`Historical weather data requested for lat: ${latitude}, lon: ${longitude}, days: ${days}`);
+      console.log(`Fetching historical weather data from Google Weather API for lat: ${latitude}, lon: ${longitude}, days: ${days}`);
 
-      return {
-        error: 'Historical weather data not available from Google Weather API'
-      };
-    } catch (error) {
-      console.error('Error fetching historical weather data:', error);
-      return {
-        error: 'Historical weather data unavailable'
-      };
-    }
-  }
-
-  // Get historical weather data for a pin from stored data
-  async getWeatherHistory(pinId, days = 7) {
-    try {
-      const history = await getAll(
-        `SELECT * FROM weather_history
-         WHERE pin_id = ?
-         AND timestamp > datetime('now', '-${days} days')
-         ORDER BY timestamp DESC`,
-        [pinId]
-      );
-
-      // If no real data exists, return null instead of fake data
-      if (history.length === 0) {
+      // IMPORTANT: Google Weather API hourly history endpoint only supports up to 24 hours of recent data
+      // It does NOT provide multi-day historical data going back in time
+      
+      if (days > 1) {
+        console.log(`Google Weather API only supports 24 hours of recent history. Requested ${days} days.`);
+        // Return null - no fallbacks
         return null;
       }
 
-      return history;
+      // Always fetch fresh data - no caching for historical weather
+
+      // Fetch last 24 hours of historical data from Google Weather API
+      try {
+        const response = await axios.get(`${this.googleWeatherBaseUrl}/history/hours:lookup`, {
+          params: {
+            key: this.googleApiKey,
+            'location.latitude': latitude,
+            'location.longitude': longitude,
+            hours: 24,
+            pageSize: 24
+          },
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (response.status === 200 && response.data?.historyHours) {
+          const hourlyData = this.transformGoogleHistoricalData(response.data.historyHours);
+          
+          if (hourlyData.length > 0) {
+            // Convert hourly data to daily format for consistency
+            const dailyData = this.aggregateHourlyToDaily(hourlyData, 1);
+
+            console.log(`Successfully fetched ${hourlyData.length} hours of historical weather data from Google API`);
+            return dailyData;
+          }
+        } else {
+          console.warn(`Google Weather API returned status ${response.status}`);
+        }
+      } catch (apiError) {
+        console.error(`Error fetching from Google Weather API:`, apiError.message);
+        return null;
+      }
     } catch (error) {
-      console.error('Error fetching weather history:', error);
+      console.error('Error fetching historical weather data:', error);
+      // Return null - no fallbacks
       return null;
     }
+  }
+
+  // Transform Google Weather API historical data to our format
+  transformGoogleHistoricalData(historyHours) {
+    const transformedData = [];
+
+    for (const hour of historyHours) {
+      try {
+        const temperature = hour.temperature?.degrees || 0;
+        const feelsLike = hour.feelsLikeTemperature?.degrees || temperature;
+        const humidity = hour.relativeHumidity || 0;
+        const pressure = hour.airPressure?.meanSeaLevelMillibars || 0;
+        const windSpeed = hour.wind?.speed?.value || 0;
+        const windDirection = hour.wind?.direction?.degrees || 0;
+        const uvIndex = hour.uvIndex || 0;
+        const visibility = (hour.visibility?.distance || 10) * 1000; // Convert km to meters
+        const cloudCover = hour.cloudCover || 0;
+        const dewPoint = hour.dewPoint?.degrees || 0;
+
+        // Parse weather condition
+        const weatherCondition = hour.weatherCondition;
+        const description = weatherCondition?.description?.text || 'Unknown';
+        const iconUri = weatherCondition?.iconBaseUri || '';
+        const icon = this.extractIconFromUri(iconUri);
+
+        // Parse precipitation
+        const precipitation = hour.precipitation;
+        const precipitationProbability = (precipitation?.probability?.percent || 0) / 100;
+        const precipitationQuantity = precipitation?.qpf?.quantity || 0;
+        const precipitationType = precipitation?.probability?.type?.toLowerCase() || null;
+
+        // Parse timestamp from interval
+        const startTime = hour.interval?.startTime;
+        const timestamp = startTime ? new Date(startTime).toISOString() : new Date().toISOString();
+
+        const weatherData = {
+          timestamp,
+          temperature: Math.round(temperature * 10) / 10,
+          feelsLike: Math.round(feelsLike * 10) / 10,
+          humidity,
+          pressure,
+          windSpeed: Math.round(windSpeed * 10) / 10,
+          windDirection,
+          description,
+          icon,
+          uvIndex,
+          uvRisk: this.getUVRiskLevel(uvIndex),
+          visibility,
+          cloudCover,
+          dewPoint: Math.round(dewPoint * 10) / 10,
+          precipitationProbability,
+          precipitationIntensity: precipitationQuantity > 0 ? precipitationQuantity : null,
+          precipitationType: precipitationQuantity > 0 ? precipitationType : null,
+          heatWaveAlert: temperature > 35,
+          coldWaveAlert: temperature < -10,
+          stagnationEvent: this.detectStagnationEvent({
+            windSpeed,
+            temperature,
+            humidity,
+            pressure
+          })
+        };
+
+        transformedData.push(weatherData);
+      } catch (error) {
+        console.error('Error transforming hourly weather data:', error);
+        // Continue with other hours
+      }
+    }
+
+    return transformedData;
+  }
+
+  // Aggregate hourly weather data into daily averages
+  aggregateHourlyToDaily(hourlyData, days) {
+    const dailyData = [];
+    const hourlyByDate = {};
+
+    // Group hourly data by date
+    for (const hour of hourlyData) {
+      const date = new Date(hour.timestamp);
+      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+
+      if (!hourlyByDate[dateKey]) {
+        hourlyByDate[dateKey] = [];
+      }
+      hourlyByDate[dateKey].push(hour);
+    }
+
+    // Calculate daily aggregates
+    const sortedDates = Object.keys(hourlyByDate).sort().slice(-days); // Get the most recent 'days' worth of data
+
+    for (const dateKey of sortedDates) {
+      const dayHours = hourlyByDate[dateKey];
+      
+      if (dayHours.length === 0) continue;
+
+      // Calculate averages and extremes
+      const temperatures = dayHours.map(h => h.temperature);
+      const feelsLikeTemps = dayHours.map(h => h.feelsLike);
+      const humidities = dayHours.map(h => h.humidity);
+      const pressures = dayHours.map(h => h.pressure);
+      const windSpeeds = dayHours.map(h => h.windSpeed);
+      const windDirections = dayHours.map(h => h.windDirection);
+      const uvIndices = dayHours.map(h => h.uvIndex);
+      const visibilities = dayHours.map(h => h.visibility);
+      const cloudCovers = dayHours.map(h => h.cloudCover);
+      const dewPoints = dayHours.map(h => h.dewPoint);
+
+      // Find the most common weather condition for the day
+      const descriptions = dayHours.map(h => h.description);
+      const mostCommonDescription = this.getMostFrequent(descriptions);
+      const icons = dayHours.map(h => h.icon);
+      const mostCommonIcon = this.getMostFrequent(icons);
+
+      // Calculate precipitation totals
+      const totalPrecipitation = dayHours
+        .filter(h => h.precipitationIntensity)
+        .reduce((sum, h) => sum + (h.precipitationIntensity || 0), 0);
+
+      const maxPrecipProbability = Math.max(...dayHours.map(h => h.precipitationProbability || 0));
+
+      const dailyWeather = {
+        timestamp: `${dateKey}T12:00:00.000Z`, // Use noon as representative time
+        temperature: Math.round(this.average(temperatures) * 10) / 10,
+        maxTemperature: Math.round(Math.max(...temperatures) * 10) / 10,
+        minTemperature: Math.round(Math.min(...temperatures) * 10) / 10,
+        feelsLike: Math.round(this.average(feelsLikeTemps) * 10) / 10,
+        humidity: Math.round(this.average(humidities)),
+        pressure: Math.round(this.average(pressures)),
+        windSpeed: Math.round(this.average(windSpeeds) * 10) / 10,
+        maxWindSpeed: Math.round(Math.max(...windSpeeds) * 10) / 10,
+        windDirection: Math.round(this.average(windDirections)),
+        description: mostCommonDescription,
+        icon: mostCommonIcon,
+        uvIndex: Math.round(Math.max(...uvIndices) * 10) / 10, // Use daily maximum
+        uvRisk: this.getUVRiskLevel(Math.max(...uvIndices)),
+        visibility: Math.round(this.average(visibilities)),
+        cloudCover: Math.round(this.average(cloudCovers)),
+        dewPoint: Math.round(this.average(dewPoints) * 10) / 10,
+        precipitationProbability: Math.round(maxPrecipProbability * 100) / 100,
+        precipitationIntensity: totalPrecipitation > 0 ? Math.round(totalPrecipitation * 10) / 10 : null,
+        precipitationType: totalPrecipitation > 0 ? dayHours.find(h => h.precipitationType)?.precipitationType : null,
+        heatWaveAlert: Math.max(...temperatures) > 35,
+        coldWaveAlert: Math.min(...temperatures) < -10,
+        stagnationEvent: dayHours.some(h => h.stagnationEvent)
+      };
+
+      dailyData.push(dailyWeather);
+    }
+
+    return dailyData;
+  }
+
+  // Helper method to calculate average
+  average(numbers) {
+    if (numbers.length === 0) return 0;
+    return numbers.reduce((sum, num) => sum + num, 0) / numbers.length;
+  }
+
+  // Helper method to find most frequent value in array
+  getMostFrequent(arr) {
+    if (arr.length === 0) return null;
+    
+    const frequency = {};
+    let maxCount = 0;
+    let mostFrequent = arr[0];
+
+    for (const item of arr) {
+      frequency[item] = (frequency[item] || 0) + 1;
+      if (frequency[item] > maxCount) {
+        maxCount = frequency[item];
+        mostFrequent = item;
+      }
+    }
+
+    return mostFrequent;
+  }
+
+  // Fallback method removed - no database fallbacks
+  async getFallbackHistoricalData(latitude, longitude, days) {
+    // No fallbacks - only real API data
+    return null;
+  }
+
+  // Get historical weather data - DEPRECATED, no database fallbacks
+  async getWeatherHistory(pinId, days = 7) {
+    // No database fallbacks - only real API data
+    return null;
   }
 
 

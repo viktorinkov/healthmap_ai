@@ -220,7 +220,16 @@ class WeatherHistoricalChart extends StatelessWidget {
     final spots = <FlSpot>[];
 
     for (int i = 0; i < historicalData.length; i++) {
+      // Skip data points with invalid humidity values
+      if (historicalData[i].humidity == null || historicalData[i].humidity.isNaN) {
+        continue;
+      }
       spots.add(FlSpot(i.toDouble(), historicalData[i].humidity));
+    }
+
+    // If no valid data points, show no data card
+    if (spots.isEmpty) {
+      return _buildNoDataMetricCard(context, 'Humidity History', Icons.water_drop);
     }
 
     return _buildSimpleHistoryChart(
@@ -241,10 +250,19 @@ class WeatherHistoricalChart extends StatelessWidget {
     final stagnationEvents = <int>[];
 
     for (int i = 0; i < historicalData.length; i++) {
+      // Skip data points with invalid wind speed values
+      if (historicalData[i].windSpeed == null || historicalData[i].windSpeed.isNaN) {
+        continue;
+      }
       spots.add(FlSpot(i.toDouble(), historicalData[i].windSpeed));
       if (historicalData[i].stagnationEvent == true) {
         stagnationEvents.add(i);
       }
+    }
+
+    // If no valid data points, show no data card
+    if (spots.isEmpty) {
+      return _buildNoDataMetricCard(context, 'Wind Speed History', Icons.air);
     }
 
     return Card(
@@ -302,7 +320,16 @@ class WeatherHistoricalChart extends StatelessWidget {
     final spots = <FlSpot>[];
 
     for (int i = 0; i < historicalData.length; i++) {
+      // Skip data points with invalid pressure values
+      if (historicalData[i].pressure == null || historicalData[i].pressure.isNaN) {
+        continue;
+      }
       spots.add(FlSpot(i.toDouble(), historicalData[i].pressure));
+    }
+
+    // If no valid data points, show no data card
+    if (spots.isEmpty) {
+      return _buildNoDataMetricCard(context, 'Atmospheric Pressure', Icons.speed);
     }
 
     return _buildSimpleHistoryChart(
@@ -319,7 +346,16 @@ class WeatherHistoricalChart extends StatelessWidget {
     final spots = <FlSpot>[];
 
     for (int i = 0; i < historicalData.length; i++) {
+      // Skip data points with invalid UV index values
+      if (historicalData[i].uvIndex == null || historicalData[i].uvIndex.isNaN) {
+        continue;
+      }
       spots.add(FlSpot(i.toDouble(), historicalData[i].uvIndex));
+    }
+
+    // If no valid data points, show no data card
+    if (spots.isEmpty) {
+      return _buildNoDataMetricCard(context, 'UV Index History', Icons.wb_sunny);
     }
 
     return _buildSimpleHistoryChart(
@@ -477,7 +513,7 @@ class WeatherHistoricalChart extends StatelessWidget {
             show: true,
             drawVerticalLine: true,
             horizontalInterval: calculatedInterval,
-            verticalInterval: historicalData.length / 7,
+            verticalInterval: 1, // Show grid lines for each day
           ),
           titlesData: FlTitlesData(
             show: true,
@@ -491,7 +527,7 @@ class WeatherHistoricalChart extends StatelessWidget {
               sideTitles: SideTitles(
                 showTitles: true,
                 reservedSize: 30,
-                interval: (historicalData.length / 7).clamp(1, 24),
+                interval: 1, // Show labels for each day
                 getTitlesWidget: (value, meta) {
                   final index = value.toInt();
                   if (index >= 0 && index < historicalData.length) {
@@ -583,6 +619,40 @@ class WeatherHistoricalChart extends StatelessWidget {
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
+    );
+  }
+
+  Widget _buildNoDataMetricCard(BuildContext context, String title, IconData icon) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                'Data not available',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

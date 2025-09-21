@@ -38,7 +38,7 @@ class _PollutionVisualizerDialogState extends State<PollutionVisualizerDialog> {
         ),
       )
       ..loadRequest(
-        Uri.parse('http://localhost:5001/pollution_heatmap_interactive.html'),
+        Uri.parse('http://169.254.211.11:5001/pollution_heatmap_interactive.html'),
       );
   }
   

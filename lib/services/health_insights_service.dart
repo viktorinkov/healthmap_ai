@@ -4,7 +4,7 @@ import '../models/user_health_profile.dart';
 import '../models/air_quality.dart';
 
 class HealthInsightsService {
-  static const String baseUrl = 'http://10.0.2.2:5001/api';
+  static const String baseUrl = 'http://168.5.158.82:5001/api';
   
   // Generate daily health summary combining Fitbit data with air quality
   static Future<Map<String, dynamic>> getDailyHealthSummary({

@@ -7,7 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
 class RunCoachHeatmapTileProvider extends TileProvider {
-  static const String _backendUrl = 'http://localhost:5001/api/run-coach';
+  static const String _backendUrl = 'http://168.5.158.82:5001/api/run-coach';
   static const int _tileSize = 256;
   
   // Cache for tiles to avoid repeated API calls
