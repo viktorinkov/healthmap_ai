@@ -1,23 +1,67 @@
 import psycopg2
+from psycopg2 import pool
 from psycopg2.extras import execute_values, RealDictCursor
 import pandas as pd
 from typing import Dict, Optional
 import os
 from datetime import datetime
+import logging
+import threading
 
 class DatabaseManager:
     def __init__(self, db_config: Dict[str, str]):
         self.db_config = db_config
         self.connection = None
+        self.pool = None
+        self.pool_lock = threading.Lock()
+        self.logger = logging.getLogger(__name__)
+        
+    def _initialize_pool(self):
+        """Initialize connection pool for database operations"""
+        if not self.pool:
+            try:
+                self.pool = psycopg2.pool.ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=5,
+                    **self.db_config
+                )
+                self.logger.info("DatabaseManager connection pool initialized")
+            except Exception as e:
+                self.logger.error(f"Failed to initialize pool: {e}")
+                raise
+    
+    def get_connection(self):
+        """Get connection from pool"""
+        if not self.pool:
+            with self.pool_lock:
+                if not self.pool:
+                    self._initialize_pool()
+        
+        try:
+            conn = self.pool.getconn()
+            if conn.closed:
+                self.pool.putconn(conn, close=True)
+                conn = self.pool.getconn()
+            return conn
+        except Exception as e:
+            self.logger.error(f"Failed to get connection: {e}")
+            raise
+    
+    def return_connection(self, conn):
+        """Return connection to pool"""
+        if self.pool and conn:
+            self.pool.putconn(conn)
     
     def connect(self):
-        """Establish database connection"""
+        """Establish database connection (legacy method for compatibility)"""
         self.connection = psycopg2.connect(**self.db_config)
     
     def disconnect(self):
         """Close database connection"""
         if self.connection:
             self.connection.close()
+        if self.pool:
+            self.pool.closeall()
     
     def create_user(self, fitbit_user_id: str, email: Optional[str] = None) -> str:
         """Create or get user and return user_id"""
