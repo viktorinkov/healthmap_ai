@@ -3,47 +3,44 @@ const { getOne, runQuery, getAll } = require('../config/database');
 
 class WeatherService {
   constructor() {
-    this.apiKey = process.env.OPENWEATHER_API_KEY;
-    this.baseUrl = 'https://api.openweathermap.org/data/2.5';
+    this.googleApiKey = process.env.GOOGLE_MAPS_API_KEY;
+    this.googleWeatherBaseUrl = 'https://weather.googleapis.com/v1';
   }
 
-  // Get current weather data for a location
-  async getCurrentWeather(latitude, longitude) {
+  // Get current weather data for a location using Google Weather API
+  async getCurrentWeather(latitude, longitude, locationName = null) {
     try {
       // Check cache first
-      const cacheKey = `weather_${latitude}_${longitude}`;
+      const cacheKey = `weather_${latitude.toFixed(4)}_${longitude.toFixed(4)}`;
       const cached = await this.getFromCache(cacheKey);
       if (cached) {
         return JSON.parse(cached);
       }
 
-      // Fetch both current weather and UV data in parallel
-      const [weatherResponse, uvResponse] = await Promise.all([
-        axios.get(`${this.baseUrl}/weather`, {
-          params: {
-            lat: latitude,
-            lon: longitude,
-            appid: this.apiKey,
-            units: 'metric'
-          }
-        }),
-        axios.get(`${this.baseUrl}/uvi`, {
-          params: {
-            lat: latitude,
-            lon: longitude,
-            appid: this.apiKey
-          }
-        }).catch(() => null) // UV data might not be available
-      ]);
+      // Fetch current weather from Google Weather API
+      const response = await axios.get(`${this.googleWeatherBaseUrl}/currentConditions:lookup`, {
+        params: {
+          key: this.googleApiKey,
+          'location.latitude': latitude,
+          'location.longitude': longitude,
+        },
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
 
-      const data = this.transformWeatherData(weatherResponse.data, uvResponse?.data);
+      if (response.status === 200 && response.data) {
+        const data = this.transformGoogleWeatherData(response.data, locationName);
 
-      // Cache the result
-      await this.saveToCache(cacheKey, JSON.stringify(data), process.env.WEATHER_CACHE_TTL || 3600);
+        // Cache the result for 1 hour
+        await this.saveToCache(cacheKey, JSON.stringify(data), 3600);
 
-      return data;
+        return data;
+      } else {
+        throw new Error(`Google Weather API returned status ${response.status}`);
+      }
     } catch (error) {
-      console.error('Error fetching weather:', error);
+      console.error('Error fetching weather from Google API:', error);
 
       // Return last known data if available
       const fallback = await getOne(
@@ -57,76 +54,347 @@ class WeatherService {
         return fallback;
       }
 
-      throw error;
+      // If no fallback available, return null to indicate no data
+      return null;
     }
   }
 
-  // Get weather forecast
-  async getWeatherForecast(latitude, longitude, days = 5) {
+  // Get weather forecast using Google Weather API
+  async getWeatherForecast(latitude, longitude, days = 5, locationName = null) {
     try {
-      const cacheKey = `forecast_${latitude}_${longitude}_${days}`;
+      const cacheKey = `forecast_${latitude.toFixed(4)}_${longitude.toFixed(4)}_${days}`;
       const cached = await this.getFromCache(cacheKey);
       if (cached) {
         return JSON.parse(cached);
       }
 
-      // Fetch forecast from OpenWeather API
-      const response = await axios.get(`${this.baseUrl}/forecast`, {
+      // Fetch forecast from Google Weather API
+      const response = await axios.get(`${this.googleWeatherBaseUrl}/forecast/days:lookup`, {
         params: {
-          lat: latitude,
-          lon: longitude,
-          appid: this.apiKey,
-          units: 'metric',
-          cnt: days * 8 // 8 data points per day (3-hour intervals)
+          key: this.googleApiKey,
+          'location.latitude': latitude,
+          'location.longitude': longitude,
+          days: days.toString(),
+        },
+        headers: {
+          'Content-Type': 'application/json',
         }
       });
 
-      const data = this.transformForecastData(response.data);
+      if (response.status === 200 && response.data) {
+        const data = this.transformGoogleForecastData(response.data, locationName);
 
-      // Cache the result
-      await this.saveToCache(cacheKey, JSON.stringify(data), process.env.WEATHER_CACHE_TTL || 3600);
+        // Cache the result for 1 hour
+        await this.saveToCache(cacheKey, JSON.stringify(data), 3600);
 
-      return data;
+        return data;
+      } else {
+        throw new Error(`Google Weather API returned status ${response.status}`);
+      }
     } catch (error) {
-      console.error('Error fetching weather forecast:', error);
-      throw error;
+      console.error('Error fetching weather forecast from Google API:', error);
+      return null;
     }
   }
 
-  // Transform OpenWeather API response to our format
-  transformWeatherData(weatherData, uvData) {
-    const baseData = {
-      temperature: weatherData.main.temp,
-      feelsLike: weatherData.main.feels_like,
-      humidity: weatherData.main.humidity,
-      pressure: weatherData.main.pressure,
-      windSpeed: weatherData.wind?.speed || 0,
-      windDirection: weatherData.wind?.deg || 0,
-      description: weatherData.weather[0].description,
-      icon: weatherData.weather[0].icon,
-      visibility: weatherData.visibility || 0,
-      clouds: weatherData.clouds?.all || 0,
-      sunrise: new Date(weatherData.sys.sunrise * 1000).toISOString(),
-      sunset: new Date(weatherData.sys.sunset * 1000).toISOString(),
-      timestamp: new Date().toISOString()
-    };
+  // Get hourly weather forecast using Google Weather API
+  async getHourlyForecast(latitude, longitude, hours = 240, locationName = null) {
+    try {
+      const cacheKey = `hourly_${latitude.toFixed(4)}_${longitude.toFixed(4)}_${hours}`;
+      const cached = await this.getFromCache(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
 
-    // Add UV Index if available
-    if (uvData) {
-      baseData.uvIndex = uvData.value || 0;
-      baseData.uvRisk = this.getUVRiskLevel(uvData.value || 0);
-    } else {
-      baseData.uvIndex = null;
-      baseData.uvRisk = 'No data available';
+      // Fetch hourly forecast from Google Weather API
+      const response = await axios.get(`${this.googleWeatherBaseUrl}/forecast/hours:lookup`, {
+        params: {
+          key: this.googleApiKey,
+          'location.latitude': latitude,
+          'location.longitude': longitude,
+          hours: hours.toString(),
+        },
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.status === 200 && response.data) {
+        const data = this.transformGoogleHourlyForecastData(response.data, locationName);
+
+        // Cache the result for 1 hour
+        await this.saveToCache(cacheKey, JSON.stringify(data), 3600);
+
+        return data;
+      } else {
+        throw new Error(`Google Weather API returned status ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error fetching hourly weather forecast from Google API:', error);
+      return null;
     }
+  }
+
+  // Transform Google Weather API response to our format
+  transformGoogleWeatherData(data, locationName = null) {
+    const temperature = data.temperature?.degrees || 0;
+    const feelsLike = data.feelsLikeTemperature?.degrees || temperature;
+    const humidity = data.relativeHumidity || 0;
+    const pressure = data.airPressure?.meanSeaLevelMillibars || 0;
+    const windSpeed = data.wind?.speed?.value || 0;
+    const windDirection = data.wind?.direction?.degrees || 0;
+    const uvIndex = data.uvIndex || 0;
+    const visibility = (data.visibility?.distance || 10) * 1000; // Convert km to meters
+    const cloudCover = data.cloudCover || 0;
+    const dewPoint = data.dewPoint?.degrees || 0;
+
+    // Parse weather condition
+    const weatherCondition = data.weatherCondition;
+    const description = weatherCondition?.description?.text || 'Unknown';
+    const iconUri = weatherCondition?.iconBaseUri || '';
+    const icon = this.extractIconFromUri(iconUri);
+
+    // Parse precipitation
+    const precipitation = data.precipitation;
+    const precipitationProbability = (precipitation?.probability?.percent || 0) / 100;
+
+    const baseData = {
+      temperature,
+      feelsLike,
+      humidity,
+      pressure,
+      windSpeed,
+      windDirection,
+      description,
+      icon,
+      uvIndex,
+      uvRisk: this.getUVRiskLevel(uvIndex),
+      visibility,
+      cloudCover,
+      dewPoint,
+      precipitationProbability,
+      timestamp: new Date().toISOString(),
+      locationName
+    };
 
     // Detect stagnation events
     baseData.stagnationEvent = this.detectStagnationEvent(baseData);
+
+    // Detect extreme temperature alerts
+    baseData.heatWaveAlert = this.checkHeatWave(temperature);
+    baseData.coldWaveAlert = this.checkColdWave(temperature);
 
     // Add weather alerts
     baseData.alerts = this.generateWeatherAlerts(baseData);
 
     return baseData;
+  }
+
+  // Transform Google Weather API forecast response to our format
+  transformGoogleForecastData(data, locationName = null) {
+    const dailyData = [];
+    const forecastDays = data.forecastDays || [];
+
+    for (const day of forecastDays) {
+      const maxTemp = day.maxTemperature?.degrees || 0;
+      const minTemp = day.minTemperature?.degrees || 0;
+      const avgTemp = (maxTemp + minTemp) / 2;
+
+      const feelsLikeMax = day.feelsLikeMaxTemperature?.degrees || maxTemp;
+      const feelsLikeMin = day.feelsLikeMinTemperature?.degrees || minTemp;
+      const avgFeelsLike = (feelsLikeMax + feelsLikeMin) / 2;
+
+      // Get daytime forecast for most weather data
+      const daytimeForecast = day.daytimeForecast || {};
+      const nighttimeForecast = day.nighttimeForecast || {};
+
+      // Average humidity between day and night
+      const dayHumidity = daytimeForecast.relativeHumidity || 50;
+      const nightHumidity = nighttimeForecast.relativeHumidity || 50;
+      const avgHumidity = (dayHumidity + nightHumidity) / 2;
+
+      // Use daytime wind data
+      const windSpeed = daytimeForecast.wind?.speed?.value || 0;
+      const windDirection = daytimeForecast.wind?.direction?.degrees || 0;
+
+      // Weather condition from daytime
+      const weatherCondition = daytimeForecast.weatherCondition || {};
+      const description = weatherCondition.description?.text || 'Unknown';
+      const iconUri = weatherCondition.iconBaseUri || '';
+      const icon = this.extractIconFromUri(iconUri);
+
+      // Other metrics
+      const uvIndex = daytimeForecast.uvIndex || 0;
+      const cloudCover = daytimeForecast.cloudCover || 0;
+
+      // Precipitation data
+      const dayPrecip = daytimeForecast.precipitation?.probability?.percent || 0;
+      const nightPrecip = nighttimeForecast.precipitation?.probability?.percent || 0;
+      const avgPrecipProb = Math.max(dayPrecip, nightPrecip) / 100;
+
+      // Parse date
+      const displayDate = day.displayDate || {};
+      const year = displayDate.year || new Date().getFullYear();
+      const month = displayDate.month || new Date().getMonth() + 1;
+      const dayOfMonth = displayDate.day || new Date().getDate();
+      const date = new Date(year, month - 1, dayOfMonth);
+
+      // Detect stagnation event and extreme temperatures
+      const stagnationEvent = this.detectStagnationEvent({ windSpeed, pressure: 1013.25 });
+      const heatWaveAlert = this.checkHeatWave(maxTemp);
+      const coldWaveAlert = this.checkColdWave(minTemp);
+
+      dailyData.push({
+        date: date.toISOString().split('T')[0],
+        temperature: avgTemp,
+        minTemp,
+        maxTemp,
+        feelsLike: avgFeelsLike,
+        humidity: avgHumidity,
+        pressure: 1013.25, // Standard pressure if not provided
+        windSpeed,
+        windDirection,
+        description,
+        icon,
+        uvIndex,
+        visibility: 10000, // Default visibility in meters
+        cloudCover,
+        dewPoint: this.calculateDewPoint(avgTemp, avgHumidity),
+        precipitationProbability: avgPrecipProb,
+        timestamp: date.toISOString(),
+        heatWaveAlert,
+        coldWaveAlert,
+        stagnationEvent,
+        locationName
+      });
+    }
+
+    return {
+      daily: dailyData,
+      lastUpdated: new Date().toISOString()
+    };
+  }
+
+  // Transform Google Weather API hourly forecast response to our format
+  transformGoogleHourlyForecastData(data, locationName = null) {
+    const hourlyData = [];
+    const forecastHours = data.forecasts || [];
+
+    for (const hour of forecastHours) {
+      const temperature = hour.temperature?.degrees || 0;
+      const feelsLike = hour.feelsLikeTemperature?.degrees || temperature;
+      const humidity = hour.relativeHumidity || 0;
+      const pressure = hour.airPressure?.meanSeaLevelMillibars || 0;
+      const windSpeed = hour.wind?.speed?.value || 0;
+      const windDirection = hour.wind?.direction?.degrees || 0;
+      const uvIndex = hour.uvIndex || 0;
+      const visibility = (hour.visibility?.distance || 10) * 1000;
+      const cloudCover = hour.cloudCover || 0;
+      const dewPoint = hour.dewPoint?.degrees || 0;
+
+      // Parse weather condition
+      const weatherCondition = hour.weatherCondition || {};
+      const description = weatherCondition.description?.text || 'Unknown';
+      const iconUri = weatherCondition.iconBaseUri || '';
+      const icon = this.extractIconFromUri(iconUri);
+
+      // Parse precipitation
+      const precipitation = hour.precipitation || {};
+      const precipitationProbability = (precipitation.probability?.percent || 0) / 100;
+
+      // Parse time
+      const timeStr = hour.time;
+      const timestamp = timeStr ? new Date(timeStr) : new Date();
+
+      // Detect conditions
+      const stagnationEvent = this.detectStagnationEvent({ windSpeed, pressure });
+      const heatWaveAlert = this.checkHeatWave(temperature);
+      const coldWaveAlert = this.checkColdWave(temperature);
+
+      hourlyData.push({
+        datetime: timestamp.toISOString(),
+        temperature,
+        feelsLike,
+        humidity,
+        pressure,
+        windSpeed,
+        windDirection,
+        description,
+        icon,
+        uvIndex,
+        visibility,
+        cloudCover,
+        dewPoint,
+        precipitationProbability,
+        timestamp: timestamp.toISOString(),
+        heatWaveAlert,
+        coldWaveAlert,
+        stagnationEvent,
+        locationName
+      });
+    }
+
+    return {
+      hourly: hourlyData,
+      lastUpdated: new Date().toISOString()
+    };
+  }
+
+  // Extract icon name from Google Weather API icon URI
+  extractIconFromUri(iconUri) {
+    if (!iconUri) return '01d';
+
+    const segments = iconUri.split('/');
+    const iconName = segments.length > 0 ? segments[segments.length - 1] : '';
+
+    // Map Google Weather icons to standard weather icon names
+    switch (iconName) {
+      case 'sunny':
+        return '01d';
+      case 'partly_cloudy':
+        return '02d';
+      case 'cloudy':
+        return '03d';
+      case 'overcast':
+        return '04d';
+      case 'drizzle':
+      case 'light_rain':
+        return '09d';
+      case 'rain':
+      case 'showers':
+        return '10d';
+      case 'thunderstorm':
+        return '11d';
+      case 'snow':
+        return '13d';
+      case 'fog':
+      case 'mist':
+        return '50d';
+      default:
+        return '01d';
+    }
+  }
+
+  // Check for heat wave conditions
+  checkHeatWave(temperature) {
+    return temperature > 35.0;
+  }
+
+  // Check for cold wave conditions
+  checkColdWave(temperature) {
+    return temperature < -10.0;
+  }
+
+  // Calculate dew point from temperature and humidity
+  calculateDewPoint(temperature, humidity) {
+    if (humidity <= 0) return temperature - 10;
+
+    // Magnus formula for dew point calculation
+    const a = 17.27;
+    const b = 237.7;
+
+    const alpha = ((a * temperature) / (b + temperature)) + Math.log(humidity / 100.0);
+    return (b * alpha) / (a - alpha);
   }
 
   // Get UV risk level

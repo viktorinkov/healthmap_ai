@@ -300,14 +300,6 @@ class _MapTabState extends State<MapTab> {
         myLocationEnabled: true,
         myLocationButtonEnabled: true,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _mapController?.animateCamera(
-            CameraUpdate.newLatLng(_currentLocation),
-          );
-        },
-        child: const Icon(Icons.my_location),
-      ),
     );
   }
 

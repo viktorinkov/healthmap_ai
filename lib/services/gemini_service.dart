@@ -108,7 +108,6 @@ ${currentAQ != null ? '''
 - Ozone: ${currentAQ.metrics.o3.toStringAsFixed(1)} ppb
 - NO2: ${currentAQ.metrics.no2.toStringAsFixed(1)} ppb
 - Wildfire Index: ${currentAQ.metrics.wildfireIndex.toStringAsFixed(1)}/100
-- Radon: ${currentAQ.metrics.radon.toStringAsFixed(1)} pCi/L
 ''' : 'No current air quality data available'}
 
 ${environmentalMeasurements != null ? '''
@@ -138,13 +137,9 @@ POLLEN & ALLERGENS (${environmentalMeasurements.aeroallergens!.measurementSource
 - Dominant Types: ${environmentalMeasurements.aeroallergens!.dominantPollenTypes.isNotEmpty ? environmentalMeasurements.aeroallergens!.dominantPollenTypes.join(', ') : 'N/A'}
 ''' : ''}${environmentalMeasurements.wildfire != null ? '''
 WILDFIRE ACTIVITY (${environmentalMeasurements.wildfire!.measurementSource}):
-- Active Fires: ${environmentalMeasurements.wildfire!.activeFireCount}
-- Nearest Fire: ${environmentalMeasurements.wildfire!.nearestFireDistanceKm?.toStringAsFixed(1) ?? 'N/A'} km
-- Smoke PM2.5: ${environmentalMeasurements.wildfire!.smokeParticulates?.toStringAsFixed(1) ?? 'N/A'} μg/m³
-- Visibility: ${environmentalMeasurements.wildfire!.visibilityKm?.toStringAsFixed(1) ?? 'N/A'} km
+- Active Fires (within 100km): ${environmentalMeasurements.wildfire!.fireCount}
 ''' : ''}${environmentalMeasurements.indoorEnvironment != null ? '''
 INDOOR ENVIRONMENT (${environmentalMeasurements.indoorEnvironment!.measurementSource}):
-- Radon: ${environmentalMeasurements.indoorEnvironment!.radonLevelPciL?.toStringAsFixed(1) ?? 'N/A'} pCi/L (EPA action level: 4.0 pCi/L)
 - VOCs: ${environmentalMeasurements.indoorEnvironment!.volatileOrganicCompoundsPpb?.toStringAsFixed(1) ?? 'N/A'} ppb
 - CO (Indoor): ${environmentalMeasurements.indoorEnvironment!.carbonMonoxidePpm?.toStringAsFixed(1) ?? 'N/A'} ppm
 - Mold Spores: ${environmentalMeasurements.indoorEnvironment!.moldSporesPerM3?.toStringAsFixed(0) ?? 'N/A'} spores/m³
@@ -348,11 +343,10 @@ POLLUTANT CONCENTRATIONS:
 
 ADDITIONAL FACTORS:
 - Wildfire Index: ${metrics.wildfireIndex.toStringAsFixed(1)}/100${metrics.wildfireRiskLevel != null ? ' (${metrics.wildfireRiskLevel})' : ''}
-- Radon: ${metrics.radon.toStringAsFixed(1)} pCi/L${metrics.radonRiskLevel != null ? ' (${metrics.radonRiskLevel} risk)' : ''}$healthContext
 
 TASK: Provide a comprehensive assessment considering:
 1. AQI score and pollutant levels relative to health standards
-2. Special risks from wildfire smoke and radon exposure
+2. Special risks from wildfire smoke exposure
 3. Health recommendations for different population groups
 4. Cumulative health impact of multiple pollutants
 

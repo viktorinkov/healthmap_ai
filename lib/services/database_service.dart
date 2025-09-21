@@ -72,7 +72,6 @@ class DatabaseService {
         o3 REAL,
         no2 REAL,
         wildfire_index REAL,
-        radon REAL,
         status TEXT,
         status_reason TEXT
       )
@@ -229,7 +228,6 @@ class DatabaseService {
         'o3': data.metrics.o3,
         'no2': data.metrics.no2,
         'wildfire_index': data.metrics.wildfireIndex,
-        'radon': data.metrics.radon,
         'status': data.status.name,
         'status_reason': data.statusReason,
       },
@@ -256,7 +254,6 @@ class DatabaseService {
         o3: map['o3'] as double,
         no2: map['no2'] as double,
         wildfireIndex: map['wildfire_index'] as double,
-        radon: map['radon'] as double,
       ),
       status: AirQualityStatus.values.firstWhere((s) => s.name == map['status']),
       statusReason: map['status_reason'] as String,

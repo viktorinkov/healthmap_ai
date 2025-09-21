@@ -3,7 +3,6 @@ const { getOne, getAll } = require('../config/database');
 const airQualityService = require('./airQuality.service');
 const weatherService = require('./weather.service');
 const pollenService = require('./pollen.service');
-const radonService = require('./radon.service');
 
 // Collect data for all active pins once per hour
 function startScheduledTasks() {
@@ -71,22 +70,6 @@ async function collectEnvironmentalData() {
           await pollenService.storePollenHistory(pin.id, pollen);
         }
 
-        // Fetch and store radon data (less frequent, only if not recently updated)
-        const recentRadon = await getOne(
-          `SELECT id FROM radon_history
-           WHERE pin_id = ?
-           AND timestamp > datetime('now', '-24 hours')
-           LIMIT 1`,
-          [pin.id]
-        );
-
-        if (!recentRadon) {
-          const radon = await radonService.getRadonData(
-            pin.latitude,
-            pin.longitude
-          );
-          await radonService.storeRadonHistory(pin.id, radon);
-        }
       } catch (error) {
         console.error(`Error collecting data for pin ${pin.id}:`, error.message);
       }

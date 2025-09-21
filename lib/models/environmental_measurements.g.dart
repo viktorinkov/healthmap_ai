@@ -72,28 +72,20 @@ Map<String, dynamic> _$AirQualityMeasurementsToJson(
 WildfireMeasurements _$WildfireMeasurementsFromJson(
         Map<String, dynamic> json) =>
     WildfireMeasurements(
-      smokeParticulates: (json['smokeParticulates'] as num?)?.toDouble(),
-      visibilityKm: (json['visibilityKm'] as num?)?.toDouble(),
-      activeFireCount: (json['activeFireCount'] as num).toInt(),
-      nearestFireDistanceKm:
-          (json['nearestFireDistanceKm'] as num?)?.toDouble(),
+      fireCount: (json['fireCount'] as num).toInt(),
       measurementSource: json['measurementSource'] as String,
     );
 
 Map<String, dynamic> _$WildfireMeasurementsToJson(
         WildfireMeasurements instance) =>
     <String, dynamic>{
-      'smokeParticulates': instance.smokeParticulates,
-      'visibilityKm': instance.visibilityKm,
-      'activeFireCount': instance.activeFireCount,
-      'nearestFireDistanceKm': instance.nearestFireDistanceKm,
+      'fireCount': instance.fireCount,
       'measurementSource': instance.measurementSource,
     };
 
 IndoorEnvironmentMeasurements _$IndoorEnvironmentMeasurementsFromJson(
         Map<String, dynamic> json) =>
     IndoorEnvironmentMeasurements(
-      radonLevelPciL: (json['radonLevelPciL'] as num?)?.toDouble(),
       volatileOrganicCompoundsPpb:
           (json['volatileOrganicCompoundsPpb'] as num?)?.toDouble(),
       carbonMonoxidePpm: (json['carbonMonoxidePpm'] as num?)?.toDouble(),
@@ -105,7 +97,6 @@ IndoorEnvironmentMeasurements _$IndoorEnvironmentMeasurementsFromJson(
 Map<String, dynamic> _$IndoorEnvironmentMeasurementsToJson(
         IndoorEnvironmentMeasurements instance) =>
     <String, dynamic>{
-      'radonLevelPciL': instance.radonLevelPciL,
       'volatileOrganicCompoundsPpb': instance.volatileOrganicCompoundsPpb,
       'carbonMonoxidePpm': instance.carbonMonoxidePpm,
       'moldSporesPerM3': instance.moldSporesPerM3,

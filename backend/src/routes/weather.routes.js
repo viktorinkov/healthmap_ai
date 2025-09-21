@@ -225,7 +225,7 @@ router.get('/wildfire',
   }
 );
 
-// Get combined environmental data (weather + pollen + air quality + wildfire + radon)
+// Get combined environmental data (weather + pollen + air quality + wildfire)
 router.get('/environmental',
   [
     query('lat').isFloat({ min: -90, max: 90 }),
@@ -244,12 +244,11 @@ router.get('/environmental',
       const longitude = parseFloat(lon);
 
       // Fetch all data in parallel
-      const [weather, pollen, airQuality, wildfire, radon] = await Promise.all([
+      const [weather, pollen, airQuality, wildfire] = await Promise.all([
         weatherService.getCurrentWeather(latitude, longitude).catch(err => ({ error: err.message })),
         pollenService.getCurrentPollen(latitude, longitude).catch(err => ({ error: err.message })),
         require('../services/airQuality.service').getCurrentAirQuality(latitude, longitude).catch(err => ({ error: err.message })),
-        wildfireService.getWildfireData(latitude, longitude, 100).catch(err => ({ error: err.message })),
-        require('../services/radon.service').getRadonData(latitude, longitude).catch(err => ({ error: err.message }))
+        wildfireService.getWildfireData(latitude, longitude, 100).catch(err => ({ error: err.message }))
       ]);
 
       res.json({
@@ -258,7 +257,6 @@ router.get('/environmental',
         pollen,
         airQuality,
         wildfire,
-        radon,
         timestamp: new Date().toISOString()
       });
     } catch (error) {

@@ -193,7 +193,7 @@ class _RecommendationsTabState extends State<RecommendationsTab>
     setState(() {
       _chatMessages.add({
         'role': 'assistant',
-        'content': 'Hello! I\'m your AI health and environmental advisor powered by Gemini 2.5 Pro. I have access to all your health data, fitness metrics, pinned locations\' air quality data, and environmental forecasts.\n\n🔬 **I always start my responses with:**\n• Complete pollutant analysis (PM2.5, PM10, Ozone, NO2, Wildfire, Radon)\n• Immediate actionable recommendations for right now, today, and this week\n• Location-specific advice for your pinned places\n• Health-specific guidance based on your conditions\n\nThen I address your specific questions with detailed analysis. How can I help you today?',
+        'content': 'Hello! I\'m your AI health and environmental advisor powered by Gemini 2.5 Pro. I have access to all your health data, fitness metrics, pinned locations\' air quality data, and environmental forecasts.\n\n🔬 **I always start my responses with:**\n• Complete pollutant analysis (PM2.5, PM10, Ozone, NO2, Wildfire)\n• Immediate actionable recommendations for right now, today, and this week\n• Location-specific advice for your pinned places\n• Health-specific guidance based on your conditions\n\nThen I address your specific questions with detailed analysis. How can I help you today?',
         'timestamp': DateTime.now(),
       });
     });
@@ -291,7 +291,7 @@ ${_unifiedInsights!['recommendation'] ?? 'No specific recommendations available'
 4. **Weather Integration** - Temperature, humidity, wind patterns affecting air quality
 5. **Pollen Forecasts** - Seasonal allergen predictions for sensitive individuals
 6. **Wildfire Monitoring** - Real-time fire activity and smoke dispersion models
-7. **Indoor Air Quality** - Radon, VOCs, and domestic pollutant assessments
+7. **Indoor Air Quality** - VOCs and domestic pollutant assessments
 
 ## Specialized Analysis Capabilities:
 - **Correlation Analysis**: Link air quality changes to health metric variations
@@ -343,7 +343,6 @@ Provide a brief status for each relevant pollutant category using this format:
 - **Ozone (O3)**: [Current ppb] vs EPA standard (70) - [Risk Level] - [Time-of-day considerations and activity advice]
 - **Nitrogen Dioxide (NO2)**: [Current ppb] vs EPA standard (100) - [Risk Level] - [Traffic/commuting implications]
 - **Wildfire Smoke**: [Risk level based on index] - [Visibility impact] - [Indoor air quality measures]
-- **Radon**: [Current pCi/L] vs EPA action level (4.0) - [Long-term health risk] - [Immediate mitigation steps]
 - **Additional Pollutants** (if present): CO, SO2, VOCs with levels vs standards and health implications
 
 ### 2. IMMEDIATE ACTIONABLE RECOMMENDATIONS:

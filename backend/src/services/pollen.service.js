@@ -21,10 +21,8 @@ class PollenService {
       const response = await axios.get(`${this.baseUrl}/forecast:lookup`, {
         params: {
           key: this.apiKey,
-          location: {
-            latitude,
-            longitude
-          },
+          'location.latitude': latitude,
+          'location.longitude': longitude,
           days: 1,
           plantsDescription: true
         }
@@ -71,10 +69,8 @@ class PollenService {
       const response = await axios.get(`${this.baseUrl}/forecast:lookup`, {
         params: {
           key: this.apiKey,
-          location: {
-            latitude,
-            longitude
-          },
+          'location.latitude': latitude,
+          'location.longitude': longitude,
           days: days,
           plantsDescription: true
         }

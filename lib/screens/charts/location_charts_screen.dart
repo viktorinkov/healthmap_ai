@@ -470,8 +470,6 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
         // Additional metrics
         const SizedBox(height: 16),
         _buildPollutantChart('Wildfire Index', '0-100', (data) => data.metrics.wildfireIndex),
-        const SizedBox(height: 16),
-        _buildPollutantChart('Radon', 'pCi/L', (data) => data.metrics.radon),
         if (_historicalData!.any((data) => data.metrics.universalAqi != null)) ...[
           const SizedBox(height: 16),
           _buildPollutantChart('Universal AQI', '0-500', (data) => (data.metrics.universalAqi ?? 0).toDouble()),

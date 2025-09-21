@@ -1,26 +1,19 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import '../models/pollen_data.dart';
-import 'api_keys.dart';
+import 'api_service.dart';
 
-/// Google Maps Pollen API Service
-/// 
-/// Implementation based on official Google documentation:
-/// https://developers.google.com/maps/documentation/pollen/overview
-/// https://developers.google.com/maps/documentation/pollen/forecast
+/// Google Maps Pollen API Service (via Backend)
+///
+/// Implementation that uses the backend server to fetch pollen data
+/// from Google's Pollen API
 class PollenApiService {
-  static const String _baseUrl = 'https://pollen.googleapis.com/v1';
 
   // Cache for pollen data with 6-hour validity (pollen data changes less frequently)
   static final Map<String, PollenForecast> _pollenCache = {};
   static final Map<String, DateTime> _cacheTimestamps = {};
   static const Duration _cacheValidity = Duration(hours: 6);
 
-  /// Get pollen forecast for a specific location (up to 5 days)
-  /// 
-  /// According to Google's API documentation, this should be a GET request with URL parameters.
-  /// Reference: https://developers.google.com/maps/documentation/pollen/forecast
+  /// Get pollen forecast for a specific location (up to 5 days) from backend
   static Future<PollenForecast?> getPollenForecast(
     double latitude,
     double longitude, {
@@ -39,59 +32,24 @@ class PollenApiService {
     }
 
     try {
-      // Build the query parameters according to Google's API documentation
-      final queryParams = <String, String>{
-        'key': ApiKeys.googleMapsApiKey,
-        'location.latitude': latitude.toString(),
-        'location.longitude': longitude.toString(),
-        'days': days.toString(),
-      };
+      final data = await ApiService.getBackendPollenForecast(
+        latitude: latitude,
+        longitude: longitude,
+        days: days,
+      );
 
-      // Add optional parameters
-      if (languageCode != null && languageCode.isNotEmpty) {
-        queryParams['languageCode'] = languageCode;
-      }
-      queryParams['plantsDescription'] = plantsDescription.toString();
-      
-      if (pageSize != null) {
-        queryParams['pageSize'] = pageSize.toString();
-      }
-      
-      if (pageToken != null && pageToken.isNotEmpty) {
-        queryParams['pageToken'] = pageToken;
+      debugPrint('Backend Pollen API Response received successfully');
+      final forecast = _parsePollenResponse(data);
+
+      if (forecast != null) {
+        // Cache the result
+        _updateCache(cacheKey, forecast);
+        debugPrint('Cached new pollen data for $cacheKey with ${forecast.dailyInfo.length} days');
       }
 
-      final uri = Uri.parse('$_baseUrl/forecast:lookup').replace(queryParameters: queryParams);
-      
-      debugPrint('Pollen API Request URL: $uri');
-
-      final response = await http.get(uri);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        debugPrint('Pollen API Response received successfully');
-        final forecast = _parsePollenResponse(data);
-
-        if (forecast != null) {
-          // Cache the result
-          _updateCache(cacheKey, forecast);
-          debugPrint('Cached new pollen data for $cacheKey with ${forecast.dailyInfo.length} days');
-        }
-
-        return forecast;
-      } else {
-        debugPrint('Error fetching pollen data: ${response.statusCode}');
-        debugPrint('Response body: ${response.body}');
-        
-        // Try to return from cache on failure
-        if (_pollenCache.containsKey(cacheKey)) {
-          debugPrint('Returning stale pollen data from cache due to API failure.');
-          return _pollenCache[cacheKey];
-        }
-        return null;
-      }
+      return forecast;
     } catch (e) {
-      debugPrint('Exception fetching pollen data: $e');
+      debugPrint('Exception fetching pollen data from backend: $e');
       // Try to return from cache on exception
       if (_pollenCache.containsKey(cacheKey)) {
         debugPrint('Returning stale pollen data from cache due to exception.');
@@ -481,21 +439,13 @@ class PollenApiService {
   }
 
   /// Get the heatmap tile URL for pollen visualization
+  /// Note: This method is not available through the backend and requires direct API key access
   /// Reference: https://developers.google.com/maps/documentation/pollen/heatmap-tiles
-  static String getPollenHeatmapTileUrl(PollenType pollenType, int zoom, int x, int y) {
-    String typeParam;
-    switch (pollenType) {
-      case PollenType.grass:
-        typeParam = 'GRASS_UPI';
-        break;
-      case PollenType.tree:
-        typeParam = 'TREE_UPI';
-        break;
-      case PollenType.weed:
-        typeParam = 'WEED_UPI';
-        break;
-    }
-    return 'https://pollen.googleapis.com/v1/mapTypes/$typeParam/heatmapTiles/$zoom/$x/$y?key=${ApiKeys.googleMapsApiKey}';
+  static String? getPollenHeatmapTileUrl(PollenType pollenType, int zoom, int x, int y) {
+    // This functionality would need to be implemented in the backend if needed
+    // For now, return null to indicate heatmap tiles are not available
+    debugPrint('Pollen heatmap tiles are not available through backend implementation');
+    return null;
   }
 
   /// Get today's pollen forecast for quick access

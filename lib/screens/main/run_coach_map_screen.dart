@@ -174,7 +174,6 @@ class _RunCoachMapScreenState extends State<RunCoachMapScreen> {
       co: random % 3 == 0 ? (200 + (baseVariation * 300)).clamp(100.0, 800.0) : null,
       so2: random % 4 == 0 ? (5 + (baseVariation * 15)).clamp(2.0, 25.0) : null,
       wildfireIndex: (baseVariation * 30).clamp(0.0, 40.0),
-      radon: (1.5 + baseVariation * 2).clamp(1.0, 4.0),
       universalAqi: null,
     );
 

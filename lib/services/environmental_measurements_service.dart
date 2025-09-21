@@ -16,7 +16,7 @@ class EnvironmentalMeasurementsService {
     String? locationName,
   }) async {
     try {
-      // First try to get data from our backend API which includes radon
+      // First try to get data from our backend API
       try {
         final backendData = await ApiService.getAllEnvironmentalData(
           latitude: latitude,
@@ -259,16 +259,12 @@ class EnvironmentalMeasurementsService {
   }
 
   static WildfireMeasurements _parseBackendWildfireData(Map<String, dynamic> data) {
-    // Parse the backend wildfire response
-    final nearbyFires = data['nearbyFires'] as int? ?? 0;
-    final closestFireDistance = data['closestFireDistance'] as double?;
-    
+    // Parse the simplified backend wildfire response
+    final fireCount = data['fireCount'] as int? ?? 0;
+
     return WildfireMeasurements(
-      smokeParticulates: null, // Backend doesn't provide this yet
-      visibilityKm: null, // Backend doesn't provide this yet
-      activeFireCount: nearbyFires,
-      nearestFireDistanceKm: closestFireDistance,
-      measurementSource: 'HealthMap Backend (NASA FIRMS)',
+      fireCount: fireCount,
+      measurementSource: 'NASA FIRMS (via Backend)',
     );
   }
 
@@ -339,44 +335,14 @@ class EnvironmentalMeasurementsService {
       final wf = data['wildfire'] as Map<String, dynamic>;
       if (!wf.containsKey('error')) {
         wildfire = WildfireMeasurements(
-          smokeParticulates: null, // No real smoke data available from backend
-          visibilityKm: null, // No real visibility data available from backend
-          activeFireCount: wf['nearbyFires'] ?? 0,
-          nearestFireDistanceKm: wf['closestFireDistance']?.toDouble(),
+          fireCount: wf['fireCount'] ?? 0,
           measurementSource: 'NASA FIRMS (via Backend)',
         );
       }
     }
 
-    // Parse radon data (NEW!)
+    // Parse indoor environment data
     IndoorEnvironmentMeasurements? indoorEnvironment;
-    if (data['radon'] != null && data['radon'] is Map) {
-      final r = data['radon'] as Map<String, dynamic>;
-      if (!r.containsKey('error')) {
-        double? radonLevel;
-        final radonValue = r['averageRadonLevel'];
-        
-        if (radonValue is num) {
-          radonLevel = radonValue.toDouble();
-        } else if (radonValue is String && radonValue != 'N/A') {
-          try {
-            radonLevel = double.parse(radonValue);
-          } catch (e) {
-            radonLevel = null; // Keep as null if can't parse
-          }
-        }
-        // If radonValue is 'N/A' or null, radonLevel stays null
-        
-        indoorEnvironment = IndoorEnvironmentMeasurements(
-          radonLevelPciL: radonLevel,
-          volatileOrganicCompoundsPpb: null,
-          carbonMonoxidePpm: null,
-          moldSporesPerM3: null,
-          formaldehydePpb: null,
-          measurementSource: 'EPA Radon Zone Data',
-        );
-      }
-    }
 
     return EnvironmentalMeasurements(
       locationId: locationId,

@@ -75,14 +75,7 @@ class AirQualityMetrics {
 
   // Additional metrics
   final double wildfireIndex; // 0-100 scale
-  final double radon; // pCi/L
   final int? universalAqi; // Universal Air Quality Index (0-500)
-  
-  // Enhanced radon details
-  final String? radonRiskLevel; // 'Low', 'Moderate', 'High'
-  final int? radonEpaZone; // 1, 2, 3
-  final String? radonZoneDescription;
-  final String? radonRecommendation;
   
   // Enhanced wildfire details
   final int? wildfireNearbyFires; // Count of fires within radius
@@ -106,12 +99,7 @@ class AirQualityMetrics {
     this.nmhc,
     this.trs,
     required this.wildfireIndex,
-    required this.radon,
     this.universalAqi,
-    this.radonRiskLevel,
-    this.radonEpaZone,
-    this.radonZoneDescription,
-    this.radonRecommendation,
     this.wildfireNearbyFires,
     this.wildfireClosestDistance,
     this.wildfireRiskLevel,
@@ -128,10 +116,8 @@ class AirQualityMetrics {
     double pm10Score = (pm10 / 150.0) * 100; // EPA standard
     double o3Score = (o3 / 70.0) * 100; // EPA standard
     double no2Score = (no2 / 100.0) * 100; // EPA standard
-    double wildfireScore = wildfireIndex;
-    double radonScore = (radon / 4.0) * 100; // EPA action level
 
-    return (pm25Score * 0.25 + pm10Score * 0.2 + o3Score * 0.2 + no2Score * 0.15 + wildfireScore * 0.1 + radonScore * 0.1).clamp(0, 100);
+    return (pm25Score * 0.3 + pm10Score * 0.25 + o3Score * 0.25 + no2Score * 0.2).clamp(0, 100);
   }
 }
 

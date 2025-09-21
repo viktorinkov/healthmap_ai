@@ -6,49 +6,17 @@ part of 'enhanced_environmental_data.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-RadonDetails _$RadonDetailsFromJson(Map<String, dynamic> json) => RadonDetails(
-      level: (json['level'] as num?)?.toDouble(),
-      riskLevel: json['riskLevel'] as String?,
-      epaZone: (json['epaZone'] as num?)?.toInt(),
-      zoneDescription: json['zoneDescription'] as String?,
-      recommendation: json['recommendation'] as String?,
-      source: json['source'] as String?,
-    );
-
-Map<String, dynamic> _$RadonDetailsToJson(RadonDetails instance) =>
-    <String, dynamic>{
-      'level': instance.level,
-      'riskLevel': instance.riskLevel,
-      'epaZone': instance.epaZone,
-      'zoneDescription': instance.zoneDescription,
-      'recommendation': instance.recommendation,
-      'source': instance.source,
-    };
-
 WildfireDetails _$WildfireDetailsFromJson(Map<String, dynamic> json) =>
     WildfireDetails(
       index: (json['index'] as num?)?.toDouble(),
-      nearbyFires: (json['nearbyFires'] as num?)?.toInt(),
-      closestFireDistanceKm:
-          (json['closestFireDistanceKm'] as num?)?.toDouble(),
-      riskLevel: json['riskLevel'] as String?,
-      smokeImpact: json['smokeImpact'] as String?,
-      airQualityImpact: json['airQualityImpact'] as String?,
-      recommendations: (json['recommendations'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList(),
+      fireCount: (json['fireCount'] as num).toInt(),
       source: json['source'] as String?,
     );
 
 Map<String, dynamic> _$WildfireDetailsToJson(WildfireDetails instance) =>
     <String, dynamic>{
       'index': instance.index,
-      'nearbyFires': instance.nearbyFires,
-      'closestFireDistanceKm': instance.closestFireDistanceKm,
-      'riskLevel': instance.riskLevel,
-      'smokeImpact': instance.smokeImpact,
-      'airQualityImpact': instance.airQualityImpact,
-      'recommendations': instance.recommendations,
+      'fireCount': instance.fireCount,
       'source': instance.source,
     };
 
@@ -68,9 +36,6 @@ EnhancedAirQualityMetrics _$EnhancedAirQualityMetricsFromJson(
       ox: (json['ox'] as num?)?.toDouble(),
       nmhc: (json['nmhc'] as num?)?.toDouble(),
       trs: (json['trs'] as num?)?.toDouble(),
-      radonDetails: json['radonDetails'] == null
-          ? null
-          : RadonDetails.fromJson(json['radonDetails'] as Map<String, dynamic>),
       wildfireDetails: json['wildfireDetails'] == null
           ? null
           : WildfireDetails.fromJson(
@@ -94,7 +59,6 @@ Map<String, dynamic> _$EnhancedAirQualityMetricsToJson(
       'ox': instance.ox,
       'nmhc': instance.nmhc,
       'trs': instance.trs,
-      'radonDetails': instance.radonDetails,
       'wildfireDetails': instance.wildfireDetails,
       'universalAqi': instance.universalAqi,
     };

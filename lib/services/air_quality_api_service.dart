@@ -150,13 +150,8 @@ class AirQualityApiService {
         }
       }
 
-      // Fetch Radon and Wildfire data from our backend
-      double radonLevel = 0.0;
+      // Fetch Wildfire data from our backend
       double wildfireIndex = 0.0;
-      String? radonRiskLevel;
-      int? radonEpaZone;
-      String? radonZoneDescription;
-      String? radonRecommendation;
       int? wildfireNearbyFires;
       double? wildfireClosestDistance;
       String? wildfireRiskLevel;
@@ -164,53 +159,6 @@ class AirQualityApiService {
       String? wildfireAirQualityImpact;
 
       try {
-        // Fetch radon data
-        final radonData = await ApiService.getRadonData(
-          latitude: latitude,
-          longitude: longitude,
-        );
-        debugPrint('Radon API Response: $radonData');
-        // Check for radon data in the correct location: epaRadonZone.averageLevel
-        final epaRadonZone = radonData['epaRadonZone'];
-        if (epaRadonZone != null && epaRadonZone['averageLevel'] != null) {
-          final radonValue = epaRadonZone['averageLevel'];
-          if (radonValue is num) {
-            radonLevel = radonValue.toDouble();
-            debugPrint('Radon Level extracted: $radonLevel');
-          } else if (radonValue is String && radonValue != 'N/A') {
-            try {
-              radonLevel = double.parse(radonValue);
-              debugPrint('Radon Level parsed from string: $radonLevel');
-            } catch (e) {
-              debugPrint('Could not parse radon level: $radonValue');
-              radonLevel = 0.0;
-            }
-          } else {
-            debugPrint('Radon data not available or is N/A: $radonValue');
-            radonLevel = 0.0;
-          }
-        } else {
-          debugPrint('EPA Radon Zone data not found in response');
-          radonLevel = 0.0;
-        }
-        
-        // Extract detailed radon information from epaRadonZone
-        if (epaRadonZone != null) {
-          if (epaRadonZone['level'] != null && epaRadonZone['level'] != 'N/A') {
-            radonRiskLevel = epaRadonZone['level'];
-          }
-          if (epaRadonZone['zone'] != null && epaRadonZone['zone'] != 'N/A') {
-            radonEpaZone = epaRadonZone['zone'] is int ? epaRadonZone['zone'] : null;
-          }
-          if (epaRadonZone['description'] != null && epaRadonZone['description'] != 'N/A') {
-            radonZoneDescription = epaRadonZone['description'];
-          }
-          final recommendation = epaRadonZone['recommendation'];
-          if (recommendation != null && recommendation is Map) {
-            radonRecommendation = recommendation['action'] ?? 'No recommendation available';
-          }
-        }
-
         // Fetch wildfire data
         final wildfireData = await ApiService.getWildfireData(
           latitude: latitude,
@@ -218,60 +166,38 @@ class AirQualityApiService {
         );
         debugPrint('Wildfire API Response: $wildfireData');
 
-        // Use actual fire data to calculate index
-        final nearbyFires = (wildfireData['nearbyFires'] as num?)?.toDouble() ?? 0.0;
-        final closestFireDistance = (wildfireData['closestFireDistance'] as num?)?.toDouble();
+        // Use fire count data to calculate index
+        final fireCount = (wildfireData['fireCount'] as num?)?.toDouble() ?? 0.0;
 
         // Store wildfire details
-        wildfireNearbyFires = nearbyFires.toInt();
-        wildfireClosestDistance = closestFireDistance;
+        wildfireNearbyFires = fireCount.toInt();
+        wildfireClosestDistance = null; // No longer provided
 
-        // Extract additional wildfire information
-        if (wildfireData['riskLevel'] != null && wildfireData['riskLevel'] != 'N/A') {
-          wildfireRiskLevel = wildfireData['riskLevel'];
-        }
-        if (wildfireData['smokeImpact'] != null && wildfireData['smokeImpact'] != 'N/A') {
-          wildfireSmokeImpact = wildfireData['smokeImpact'];
-        }
-        if (wildfireData['airQualityImpact'] != null && wildfireData['airQualityImpact'] != 'N/A') {
-          wildfireAirQualityImpact = wildfireData['airQualityImpact'];
-        }
-
-        // Calculate wildfire index based on actual fire proximity and count
-        // Index scales from 0-100 based on fire distance and count
-        if (closestFireDistance != null) {
-          if (closestFireDistance <= 10) {
-            wildfireIndex = 90.0 + (nearbyFires.clamp(0, 10));  // 90-100 for fires within 10km
-            wildfireRiskLevel = 'Critical';
-            wildfireSmokeImpact = 'Severe';
-            wildfireAirQualityImpact = 'Very unhealthy air quality likely';
-          } else if (closestFireDistance <= 25) {
-            wildfireIndex = 60.0 + (nearbyFires.clamp(0, 20));  // 60-80 for fires within 25km
+        // Calculate wildfire index based on fire count within 100km
+        // Index scales from 0-50 based on fire count (simplified)
+        if (fireCount > 0) {
+          if (fireCount >= 10) {
+            wildfireIndex = 40.0 + (fireCount.clamp(0, 10));  // 40-50 for many fires
             wildfireRiskLevel = 'High';
             wildfireSmokeImpact = 'Heavy';
-            wildfireAirQualityImpact = 'Unhealthy air quality expected';
-          } else if (closestFireDistance <= 50) {
-            wildfireIndex = 30.0 + (nearbyFires.clamp(0, 20));  // 30-50 for fires within 50km
+            wildfireAirQualityImpact = 'Air quality may be significantly affected';
+          } else if (fireCount >= 5) {
+            wildfireIndex = 20.0 + (fireCount.clamp(0, 20));  // 20-40 for moderate fires
             wildfireRiskLevel = 'Moderate';
             wildfireSmokeImpact = 'Moderate';
             wildfireAirQualityImpact = 'Air quality may be affected';
-          } else if (closestFireDistance <= 100) {
-            wildfireIndex = 10.0 + (nearbyFires.clamp(0, 10));  // 10-20 for fires within 100km
+          } else {
+            wildfireIndex = 5.0 + (fireCount.clamp(0, 15));  // 5-20 for few fires
             wildfireRiskLevel = 'Low';
             wildfireSmokeImpact = 'Light';
             wildfireAirQualityImpact = 'Minor air quality impacts possible';
-          } else {
-            wildfireIndex = nearbyFires.clamp(0, 10);  // 0-10 for fires beyond 100km
-            wildfireRiskLevel = 'Low';
-            wildfireSmokeImpact = 'Light';
-            wildfireAirQualityImpact = 'No significant impact expected';
           }
         } else {
           // No fires detected - keep API values, just set index to 0
           wildfireIndex = 0.0;
         }
       } catch (e) {
-        debugPrint('Error fetching radon/wildfire data: $e');
+        debugPrint('Error fetching wildfire data: $e');
       }
 
       final metrics = AirQualityMetrics(
@@ -289,12 +215,7 @@ class AirQualityApiService {
         nmhc: nmhc,
         trs: trs,
         wildfireIndex: wildfireIndex,
-        radon: radonLevel,
         universalAqi: aqiValue.toInt(),
-        radonRiskLevel: radonRiskLevel,
-        radonEpaZone: radonEpaZone,
-        radonZoneDescription: radonZoneDescription,
-        radonRecommendation: radonRecommendation,
         wildfireNearbyFires: wildfireNearbyFires,
         wildfireClosestDistance: wildfireClosestDistance,
         wildfireRiskLevel: wildfireRiskLevel,
@@ -658,41 +579,10 @@ class AirQualityApiService {
 
       final aqiValue = (universalAqi['aqi'] as num?)?.toDouble() ?? 0.0;
 
-      // Fetch Radon and Wildfire data from our backend
-      double radonLevel = 0.0;
+      // Fetch Wildfire data from our backend
       double wildfireIndex = 0.0;
 
       try {
-        // Fetch radon data
-        final radonData = await ApiService.getRadonData(
-          latitude: latitude,
-          longitude: longitude,
-        );
-        debugPrint('Radon API Response: $radonData');
-        // Check for radon data in the correct location: epaRadonZone.averageLevel
-        final epaRadonZone = radonData['epaRadonZone'];
-        if (epaRadonZone != null && epaRadonZone['averageLevel'] != null) {
-          final radonValue = epaRadonZone['averageLevel'];
-          if (radonValue is num) {
-            radonLevel = radonValue.toDouble();
-            debugPrint('Radon Level extracted: $radonLevel');
-          } else if (radonValue is String && radonValue != 'N/A') {
-            try {
-              radonLevel = double.parse(radonValue);
-              debugPrint('Radon Level parsed from string: $radonLevel');
-            } catch (e) {
-              debugPrint('Could not parse radon level: $radonValue');
-              radonLevel = 0.0;
-            }
-          } else {
-            debugPrint('Radon data not available or is N/A: $radonValue');
-            radonLevel = 0.0;
-          }
-        } else {
-          debugPrint('EPA Radon Zone data not found in response');
-          radonLevel = 0.0;
-        }
-
         // Fetch wildfire data
         final wildfireData = await ApiService.getWildfireData(
           latitude: latitude,
@@ -700,30 +590,25 @@ class AirQualityApiService {
         );
         debugPrint('Wildfire API Response (historical): $wildfireData');
 
-        // Use actual fire data to calculate index
-        final nearbyFires = (wildfireData['nearbyFires'] as num?)?.toDouble() ?? 0.0;
-        final closestFireDistance = (wildfireData['closestFireDistance'] as num?)?.toDouble();
+        // Use fire count data to calculate index
+        final fireCount = (wildfireData['fireCount'] as num?)?.toDouble() ?? 0.0;
 
-        // Calculate wildfire index based on actual fire proximity and count
-        // Index scales from 0-100 based on fire distance and count
-        if (closestFireDistance != null) {
-          if (closestFireDistance <= 10) {
-            wildfireIndex = 90.0 + (nearbyFires.clamp(0, 10));  // 90-100 for fires within 10km
-          } else if (closestFireDistance <= 25) {
-            wildfireIndex = 60.0 + (nearbyFires.clamp(0, 20));  // 60-80 for fires within 25km
-          } else if (closestFireDistance <= 50) {
-            wildfireIndex = 30.0 + (nearbyFires.clamp(0, 20));  // 30-50 for fires within 50km
-          } else if (closestFireDistance <= 100) {
-            wildfireIndex = 10.0 + (nearbyFires.clamp(0, 10));  // 10-20 for fires within 100km
+        // Calculate wildfire index based on fire count within 100km
+        // Index scales from 0-50 based on fire count (simplified)
+        if (fireCount > 0) {
+          if (fireCount >= 10) {
+            wildfireIndex = 40.0 + (fireCount.clamp(0, 10));  // 40-50 for many fires
+          } else if (fireCount >= 5) {
+            wildfireIndex = 20.0 + (fireCount.clamp(0, 20));  // 20-40 for moderate fires
           } else {
-            wildfireIndex = nearbyFires.clamp(0, 10);  // 0-10 for fires beyond 100km
+            wildfireIndex = 5.0 + (fireCount.clamp(0, 15));  // 5-20 for few fires
           }
         } else {
           // No fires detected
           wildfireIndex = 0.0;
         }
       } catch (e) {
-        debugPrint('Error fetching radon/wildfire data: $e');
+        debugPrint('Error fetching wildfire data: $e');
       }
 
       final metrics = AirQualityMetrics(
@@ -741,12 +626,7 @@ class AirQualityApiService {
         nmhc: nmhc,
         trs: trs,
         wildfireIndex: wildfireIndex,
-        radon: radonLevel,
         universalAqi: aqiValue.toInt(),
-        radonRiskLevel: null,
-        radonEpaZone: null,
-        radonZoneDescription: null,
-        radonRecommendation: null,
         wildfireNearbyFires: null,
         wildfireClosestDistance: null,
         wildfireRiskLevel: null,

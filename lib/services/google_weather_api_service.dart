@@ -1,51 +1,32 @@
-import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import '../models/weather_data.dart';
-import 'api_keys.dart';
+import 'api_service.dart';
 
 class GoogleWeatherApiService {
-  static const String _baseUrl = 'https://weather.googleapis.com/v1';
 
-  /// Get current weather conditions from Google Weather API
+  /// Get current weather conditions from backend (Google Weather API)
   static Future<WeatherData?> getCurrentWeather(
     double latitude,
     double longitude, {
     String? locationName,
   }) async {
     try {
-      final url = Uri.parse('$_baseUrl/currentConditions:lookup');
-      final queryParams = {
-        'key': ApiKeys.googleMapsApiKey,
-        'location.latitude': latitude.toString(),
-        'location.longitude': longitude.toString(),
-      };
-
-      final response = await http.get(
-        url.replace(queryParameters: queryParams),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      final data = await ApiService.getBackendCurrentWeather(
+        latitude: latitude,
+        longitude: longitude,
+        locationName: locationName,
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        debugPrint('Google Weather API Current Conditions Response received');
-
-        return _parseCurrentWeatherData(data);
-      }
-
-      debugPrint('Failed to fetch current weather: ${response.statusCode}');
-      debugPrint('Response body: ${response.body}');
-      return null;
+      debugPrint('Backend Weather API Current Conditions Response received');
+      return _parseCurrentWeatherData(data);
     } catch (e) {
-      debugPrint('Error fetching current weather: $e');
+      debugPrint('Error fetching current weather from backend: $e');
       return null;
     }
   }
 
-  /// Get weather forecast from Google Weather API
+  /// Get weather forecast from backend (Google Weather API)
   static Future<WeatherForecast?> getWeatherForecast(
     double latitude,
     double longitude, {
@@ -53,38 +34,22 @@ class GoogleWeatherApiService {
     int days = 10,
   }) async {
     try {
-      final url = Uri.parse('$_baseUrl/forecast/days:lookup');
-      final queryParams = {
-        'key': ApiKeys.googleMapsApiKey,
-        'location.latitude': latitude.toString(),
-        'location.longitude': longitude.toString(),
-        'days': days.toString(),
-      };
-
-      final response = await http.get(
-        url.replace(queryParameters: queryParams),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      final data = await ApiService.getBackendWeatherForecast(
+        latitude: latitude,
+        longitude: longitude,
+        days: days,
+        locationName: locationName,
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        debugPrint('Google Weather API Forecast Response received');
-
-        return _parseForecastData(data);
-      }
-
-      debugPrint('Failed to fetch weather forecast: ${response.statusCode}');
-      debugPrint('Response body: ${response.body}');
-      return null;
+      debugPrint('Backend Weather API Forecast Response received');
+      return _parseForecastData(data);
     } catch (e) {
-      debugPrint('Error fetching weather forecast: $e');
+      debugPrint('Error fetching weather forecast from backend: $e');
       return null;
     }
   }
 
-  /// Get hourly weather forecast from Google Weather API
+  /// Get hourly weather forecast from backend (Google Weather API)
   static Future<WeatherForecast?> getHourlyForecast(
     double latitude,
     double longitude, {
@@ -92,33 +57,17 @@ class GoogleWeatherApiService {
     int hours = 240, // Up to 10 days (240 hours)
   }) async {
     try {
-      final url = Uri.parse('$_baseUrl/forecast/hours:lookup');
-      final queryParams = {
-        'key': ApiKeys.googleMapsApiKey,
-        'location.latitude': latitude.toString(),
-        'location.longitude': longitude.toString(),
-        'hours': hours.toString(),
-      };
-
-      final response = await http.get(
-        url.replace(queryParameters: queryParams),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      final data = await ApiService.getBackendHourlyWeatherForecast(
+        latitude: latitude,
+        longitude: longitude,
+        hours: hours,
+        locationName: locationName,
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        debugPrint('Google Weather API Hourly Forecast Response received');
-
-        return _parseHourlyForecastData(data);
-      }
-
-      debugPrint('Failed to fetch hourly forecast: ${response.statusCode}');
-      debugPrint('Response body: ${response.body}');
-      return null;
+      debugPrint('Backend Weather API Hourly Forecast Response received');
+      return _parseHourlyForecastData(data);
     } catch (e) {
-      debugPrint('Error fetching hourly forecast: $e');
+      debugPrint('Error fetching hourly forecast from backend: $e');
       return null;
     }
   }

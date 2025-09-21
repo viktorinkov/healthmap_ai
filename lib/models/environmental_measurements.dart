@@ -54,17 +54,11 @@ class AirQualityMeasurements {
 
 @JsonSerializable()
 class WildfireMeasurements {
-  final double? smokeParticulates; // PM2.5 from wildfire smoke in μg/m³
-  final double? visibilityKm; // Visibility in kilometers
-  final int activeFireCount; // Number of active fires within radius
-  final double? nearestFireDistanceKm; // Distance to nearest fire in km
-  final String measurementSource; // e.g., "NASA FIRMS", "NOAA HMS"
+  final int fireCount; // Number of active fires within 100km radius
+  final String measurementSource; // e.g., "NASA FIRMS"
 
   const WildfireMeasurements({
-    this.smokeParticulates,
-    this.visibilityKm,
-    required this.activeFireCount,
-    this.nearestFireDistanceKm,
+    required this.fireCount,
     required this.measurementSource,
   });
 
@@ -75,15 +69,13 @@ class WildfireMeasurements {
 
 @JsonSerializable()
 class IndoorEnvironmentMeasurements {
-  final double? radonLevelPciL; // Radon in picocuries per liter (pCi/L)
   final double? volatileOrganicCompoundsPpb; // VOCs in parts per billion
   final double? carbonMonoxidePpm; // CO from combustion in parts per million
   final double? moldSporesPerM3; // Mold spores per cubic meter
   final double? formaldehydePpb; // Formaldehyde in ppb
-  final String measurementSource; // e.g., "EPA Radon Database", "User Sensor"
+  final String measurementSource; // e.g., "User Sensor", "Indoor Air Monitor"
 
   const IndoorEnvironmentMeasurements({
-    this.radonLevelPciL,
     this.volatileOrganicCompoundsPpb,
     this.carbonMonoxidePpm,
     this.moldSporesPerM3,

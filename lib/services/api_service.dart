@@ -359,58 +359,94 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
-  // Radon data endpoints
-  static Future<Map<String, dynamic>> getRadonData({
+  // Weather data endpoints (using backend Google Weather API)
+  static Future<Map<String, dynamic>> getBackendCurrentWeather({
+    required double latitude,
+    required double longitude,
+    String? locationName,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/weather/current?lat=$latitude&lon=$longitude${locationName != null ? '&location=$locationName' : ''}'),
+      headers: getHeaders(includeAuth: false),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch weather data: ${response.statusCode}');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getBackendWeatherForecast({
+    required double latitude,
+    required double longitude,
+    int days = 5,
+    String? locationName,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/weather/forecast?lat=$latitude&lon=$longitude&days=$days${locationName != null ? '&location=$locationName' : ''}'),
+      headers: getHeaders(includeAuth: false),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch weather forecast: ${response.statusCode}');
+    }
+  }
+
+  static Future<Map<String, dynamic>> getBackendHourlyWeatherForecast({
+    required double latitude,
+    required double longitude,
+    int hours = 240,
+    String? locationName,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/weather/hourly?lat=$latitude&lon=$longitude&hours=$hours${locationName != null ? '&location=$locationName' : ''}'),
+      headers: getHeaders(includeAuth: false),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch hourly weather forecast: ${response.statusCode}');
+    }
+  }
+
+  // Pollen data endpoints (using backend Google Pollen API)
+  static Future<Map<String, dynamic>> getBackendCurrentPollen({
     required double latitude,
     required double longitude,
   }) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/radon/current?lat=$latitude&lon=$longitude'),
+      Uri.parse('$baseUrl/weather/pollen?lat=$latitude&lon=$longitude'),
       headers: getHeaders(includeAuth: false),
     );
 
-    return jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch pollen data: ${response.statusCode}');
+    }
   }
 
-  static Future<Map<String, dynamic>> getRadonZones() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/radon/zones'),
-      headers: getHeaders(includeAuth: false),
-    );
-
-    return jsonDecode(response.body);
-  }
-
-  static Future<List<dynamic>> getRadonHistory({
-    required int pinId,
-    int days = 7,
+  static Future<Map<String, dynamic>> getBackendPollenForecast({
+    required double latitude,
+    required double longitude,
+    int days = 5,
   }) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/radon/demo/history/$pinId?days=$days'),
-      headers: getHeaders(),
-    );
-
-    // Extract history array from the wrapped response
-    final data = jsonDecode(response.body);
-    return data['history'] ?? data;
-  }
-
-  static Future<Map<String, dynamic>> getRadonBatch(
-    List<Map<String, double>> locations,
-  ) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/radon/batch'),
+      Uri.parse('$baseUrl/weather/pollen/forecast?lat=$latitude&lon=$longitude&days=$days'),
       headers: getHeaders(includeAuth: false),
-      body: jsonEncode({
-        'locations': locations.map((loc) => {
-          'lat': loc['latitude'],
-          'lon': loc['longitude'],
-        }).toList(),
-      }),
     );
 
-    return jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch pollen forecast: ${response.statusCode}');
+    }
   }
+
 
   // Batch operations
   static Future<List<dynamic>> getAirQualityBatch(

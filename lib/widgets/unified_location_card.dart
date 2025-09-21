@@ -280,15 +280,6 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
       ));
     }
 
-    // Radon (normal: <2.0)
-    if (metrics.radon != null && metrics.radon! >= 2.0) {
-      deviations.add(_MetricDeviation(
-        label: 'Radon: ${metrics.radon!.toStringAsFixed(1)} pCi/L',
-        score: metrics.radon! / 2,
-        severity: metrics.radon! >= 4.0 ? HighlightSeverity.high
-                : HighlightSeverity.medium,
-      ));
-    }
 
     // Universal AQI (normal: 0-50)
     if (metrics.universalAqi != null && metrics.universalAqi! > 50) {
@@ -363,13 +354,6 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
         ));
       }
 
-      if (metrics.radon != null) {
-        additionalMetrics.add(_MetricDeviation(
-          label: 'Radon: ${metrics.radon!.toStringAsFixed(1)} pCi/L',
-          score: metrics.radon!,
-          severity: HighlightSeverity.good,
-        ));
-      }
 
       // Sort by value and add until we have at least 3
       additionalMetrics.sort((a, b) => b.score.compareTo(a.score));

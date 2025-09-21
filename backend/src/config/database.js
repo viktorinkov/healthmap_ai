@@ -134,19 +134,6 @@ async function initializeDatabase() {
         )
       `);
 
-      // Historical radon data
-      database.run(`
-        CREATE TABLE IF NOT EXISTS radon_history (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          pin_id INTEGER NOT NULL,
-          radon_risk TEXT,
-          radon_zone INTEGER,
-          average_level REAL,
-          description TEXT,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (pin_id) REFERENCES pins (id) ON DELETE CASCADE
-        )
-      `);
 
       // Cache table for external API responses
       database.run(`
@@ -278,7 +265,6 @@ async function initializeDatabase() {
       database.run(`CREATE INDEX IF NOT EXISTS idx_weather_pin_id ON weather_history(pin_id)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_pollen_pin_id ON pollen_history(pin_id)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_wildfire_pin_id ON wildfire_history(pin_id)`);
-      database.run(`CREATE INDEX IF NOT EXISTS idx_radon_pin_id ON radon_history(pin_id)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_cache_key ON api_cache(cache_key)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_running_routes_user_id ON running_routes(user_id)`);
@@ -292,7 +278,7 @@ async function initializeDatabase() {
       database.run(`CREATE INDEX IF NOT EXISTS idx_air_quality_timestamp ON air_quality_history(timestamp)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_weather_timestamp ON weather_history(timestamp)`);
       database.run(`CREATE INDEX IF NOT EXISTS idx_wildfire_timestamp ON wildfire_history(timestamp)`);
-      database.run(`CREATE INDEX IF NOT EXISTS idx_radon_timestamp ON radon_history(timestamp)`, (err) => {
+      database.run(`CREATE INDEX IF NOT EXISTS idx_pollen_timestamp ON pollen_history(timestamp)`, (err) => {
         if (err) {
           reject(err);
         } else {

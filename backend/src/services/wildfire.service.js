@@ -3,27 +3,39 @@ const { getOne, runQuery, getAll } = require('../config/database');
 
 class WildfireService {
   constructor() {
-    // NASA FIRMS API - no key required for basic access
-    this.firmsBaseUrl = 'https://firms.modaps.eosdis.nasa.gov/mapserver/wfs/fires';
-    // Alternative: USGS API for active wildfires
-    this.usgsBaseUrl = 'https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services';
+    // NASA FIRMS API v4 - requires free MAP_KEY
+    this.firmsBaseUrl = 'https://firms.modaps.eosdis.nasa.gov/api/area/csv';
+    // Get your free MAP_KEY at: https://firms.modaps.eosdis.nasa.gov/api/
+    // Set environment variable: FIRMS_MAP_KEY=your_key_here
+    this.firmsMapKey = process.env.FIRMS_MAP_KEY || null;
   }
 
-  // Get wildfire data within radius of location
+  // Get count of fires within 100km
   async getWildfireData(latitude, longitude, radiusKm = 100) {
     try {
       // Check cache first
-      const cacheKey = `wildfire_${latitude}_${longitude}_${radiusKm}`;
+      const cacheKey = `wildfire_count_${latitude}_${longitude}_${radiusKm}`;
       const cached = await this.getFromCache(cacheKey);
       if (cached) {
         return JSON.parse(cached);
       }
 
-      // Get active fires from NASA FIRMS
-      const fires = await this.getFIRMSData(latitude, longitude, radiusKm);
+      // Try to get active fires from NASA FIRMS first
+      let fires = await this.getFIRMSData(latitude, longitude, radiusKm);
 
-      // Calculate wildfire risk and smoke impact
-      const wildfireData = this.calculateWildfireRisk(fires, latitude, longitude);
+      // If FIRMS fails or returns no data, try USGS as backup
+      if (!fires || fires.length === 0) {
+        console.log('No FIRMS data available, trying USGS fallback...');
+        fires = await this.getUSGSWildfireData(latitude, longitude, radiusKm);
+      }
+
+      // Filter fires within the specified radius and count them
+      const firesWithin100km = fires.filter(fire => fire.distance <= radiusKm);
+
+      const wildfireData = {
+        fireCount: firesWithin100km.length,
+        timestamp: new Date().toISOString()
+      };
 
       // Cache the result (shorter TTL for wildfire data)
       await this.saveToCache(cacheKey, JSON.stringify(wildfireData), 3600); // 1 hour
@@ -32,46 +44,44 @@ class WildfireService {
     } catch (error) {
       console.error('Error fetching wildfire data:', error);
 
-      // Don't return fallback data - only return real data or null
-      return null;
+      // Return a safe default response indicating service issues
+      return {
+        fireCount: 0,
+        timestamp: new Date().toISOString(),
+        error: 'Unable to fetch wildfire data at this time'
+      };
     }
   }
 
   // Fetch data from NASA FIRMS
   async getFIRMSData(latitude, longitude, radiusKm) {
     try {
-      // FIRMS WFS service for MODIS active fires (last 24 hours)
-      const bbox = this.calculateBoundingBox(latitude, longitude, radiusKm);
+      // Check if we have a MAP_KEY
+      if (!this.firmsMapKey) {
+        console.log('No FIRMS MAP_KEY available, falling back to USGS data');
+        return await this.getUSGSWildfireData(latitude, longitude, radiusKm);
+      }
 
-      const response = await axios.get(this.firmsBaseUrl, {
-        params: {
-          service: 'WFS',
-          version: '1.1.0',
-          request: 'GetFeature',
-          typeName: 'ms:fires_modis_24hrs',
-          outputFormat: 'json',
-          bbox: `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`,
-          srsName: 'EPSG:4326'
-        },
-        timeout: 10000
+      // Calculate bounding box for the area
+      const bbox = this.calculateBoundingBox(latitude, longitude, radiusKm);
+      const areaCoords = `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`;
+
+      // FIRMS API v4 endpoint: /api/area/csv/[MAP_KEY]/[SOURCE]/[AREA_COORDINATES]/[DAY_RANGE]
+      const source = 'VIIRS_SNPP_NRT'; // Use VIIRS for better coverage
+      const dayRange = 1; // Last 24 hours
+      
+      const firmUrl = `${this.firmsBaseUrl}/${this.firmsMapKey}/${source}/${areaCoords}/${dayRange}`;
+
+      const response = await axios.get(firmUrl, {
+        timeout: 10000,
+        headers: {
+          'Accept': 'text/csv'
+        }
       });
 
-      if (response.data && response.data.features) {
-        return response.data.features.map(feature => ({
-          latitude: feature.geometry.coordinates[1],
-          longitude: feature.geometry.coordinates[0],
-          brightness: feature.properties.brightness || 0,
-          confidence: feature.properties.confidence || 0,
-          frp: feature.properties.frp || 0, // Fire Radiative Power
-          acq_date: feature.properties.acq_date,
-          acq_time: feature.properties.acq_time,
-          satellite: feature.properties.satellite || 'MODIS',
-          distance: this.calculateDistance(
-            latitude, longitude,
-            feature.geometry.coordinates[1],
-            feature.geometry.coordinates[0]
-          )
-        }));
+      if (response.data) {
+        // Parse CSV response
+        return this.parseFIRMSCSV(response.data, latitude, longitude);
       }
 
       return [];
@@ -80,6 +90,56 @@ class WildfireService {
 
       // Try alternative USGS data source
       return await this.getUSGSWildfireData(latitude, longitude, radiusKm);
+    }
+  }
+
+  // Parse CSV response from FIRMS API
+  parseFIRMSCSV(csvData, userLat, userLon) {
+    try {
+      const lines = csvData.split('\n');
+      if (lines.length <= 1) return []; // No data or header only
+
+      const headers = lines[0].split(',');
+      const fires = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const values = line.split(',');
+        if (values.length < headers.length) continue;
+
+        // Create object from CSV row
+        const fireData = {};
+        headers.forEach((header, index) => {
+          fireData[header.trim()] = values[index]?.trim();
+        });
+
+        // Extract relevant fields (VIIRS/MODIS have different column names)
+        const lat = parseFloat(fireData.latitude || fireData.lat);
+        const lon = parseFloat(fireData.longitude || fireData.lon);
+        
+        if (isNaN(lat) || isNaN(lon)) continue;
+
+        const fire = {
+          latitude: lat,
+          longitude: lon,
+          brightness: parseFloat(fireData.brightness || fireData.bright_ti4 || fireData.bright_ti5 || 0),
+          confidence: parseFloat(fireData.confidence || 0),
+          frp: parseFloat(fireData.frp || 0), // Fire Radiative Power
+          acq_date: fireData.acq_date,
+          acq_time: fireData.acq_time,
+          satellite: fireData.satellite || fireData.instrument || 'VIIRS',
+          distance: this.calculateDistance(userLat, userLon, lat, lon)
+        };
+
+        fires.push(fire);
+      }
+
+      return fires;
+    } catch (error) {
+      console.error('Error parsing FIRMS CSV:', error);
+      return [];
     }
   }
 
@@ -128,74 +188,6 @@ class WildfireService {
     }
   }
 
-  // Calculate wildfire risk based on nearby fires
-  calculateWildfireRisk(fires, userLat, userLon) {
-    if (!fires || fires.length === 0) {
-      return {
-        riskLevel: 'Low',
-        nearbyFires: 0,
-        closestFireDistance: null,
-        smokeImpact: 'Minimal',
-        airQualityImpact: 'No significant impact expected',
-        recommendations: ['No active wildfires detected in your area'],
-        fires: [],
-        timestamp: new Date().toISOString()
-      };
-    }
-
-    // Sort fires by distance
-    const sortedFires = fires.sort((a, b) => a.distance - b.distance);
-    const closestFire = sortedFires[0];
-    const firesWithin50km = fires.filter(f => f.distance <= 50);
-    const firesWithin100km = fires.filter(f => f.distance <= 100);
-
-    // Calculate risk level
-    let riskLevel = 'Low';
-    let smokeImpact = 'Minimal';
-    let airQualityImpact = 'No significant impact expected';
-    const recommendations = [];
-
-    if (closestFire.distance <= 10) {
-      riskLevel = 'Critical';
-      smokeImpact = 'Severe';
-      airQualityImpact = 'Very unhealthy air quality likely';
-      recommendations.push('Immediate evacuation may be necessary');
-      recommendations.push('Stay indoors with windows closed');
-      recommendations.push('Use air purifiers if available');
-    } else if (closestFire.distance <= 25) {
-      riskLevel = 'High';
-      smokeImpact = 'Heavy';
-      airQualityImpact = 'Unhealthy air quality expected';
-      recommendations.push('Avoid outdoor activities');
-      recommendations.push('Keep windows closed');
-      recommendations.push('Monitor evacuation alerts');
-    } else if (closestFire.distance <= 50) {
-      riskLevel = 'Moderate';
-      smokeImpact = 'Moderate';
-      airQualityImpact = 'Air quality may be affected';
-      recommendations.push('Limit outdoor activities, especially for sensitive groups');
-      recommendations.push('Monitor air quality conditions');
-    } else if (closestFire.distance <= 100) {
-      riskLevel = 'Low';
-      smokeImpact = 'Light';
-      airQualityImpact = 'Minor air quality impacts possible';
-      recommendations.push('Monitor wildfire conditions');
-      recommendations.push('Be prepared for changing conditions');
-    }
-
-    return {
-      riskLevel,
-      nearbyFires: fires.length,
-      firesWithin50km: firesWithin50km.length,
-      firesWithin100km: firesWithin100km.length,
-      closestFireDistance: Math.round(closestFire.distance * 10) / 10,
-      smokeImpact,
-      airQualityImpact,
-      recommendations,
-      fires: sortedFires.slice(0, 10), // Limit to 10 closest fires
-      timestamp: new Date().toISOString()
-    };
-  }
 
   // Calculate bounding box around point
   calculateBoundingBox(lat, lon, radiusKm) {
@@ -223,19 +215,16 @@ class WildfireService {
     return R * c;
   }
 
-  // Store wildfire data in history
+  // Store wildfire count in history
   async storeWildfireHistory(pinId, data) {
     try {
       await runQuery(
         `INSERT INTO wildfire_history
-         (pin_id, risk_level, nearby_fires, closest_fire_distance, smoke_impact, timestamp)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         (pin_id, nearby_fires, timestamp)
+         VALUES (?, ?, ?)`,
         [
           pinId,
-          data.riskLevel,
-          data.nearbyFires,
-          data.closestFireDistance,
-          data.smokeImpact,
+          data.fireCount,
           data.timestamp || new Date().toISOString()
         ]
       );
