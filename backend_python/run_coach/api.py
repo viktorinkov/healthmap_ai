@@ -37,8 +37,8 @@ def _initialize_services():
     
     if not _services_initialized:
         air_quality_service = AirQualityService()
-        # Use 300m resolution for better performance
-        pollution_grid = PollutionGrid(resolution_meters=300)
+        # Use 2000m resolution for demo performance (much faster)
+        pollution_grid = PollutionGrid(resolution_meters=2000)
         route_generator = RouteGenerator()
         health_risk_calculator = HealthRiskCalculator()
         time_optimizer = TimeWindowOptimizer(air_quality_service)

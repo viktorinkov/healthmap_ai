@@ -24,7 +24,11 @@ class RunCoachService {
     required bool prioritizeParks,
     required bool avoidTraffic,
   }) async {
+    print('🌐 RunCoachService: getRouteRecommendation() called');
+    print('📍 RunCoachService: Location: $location, Distance: ${distanceKm}km');
+
     try {
+      print('📡 RunCoachService: Sending POST request to $baseUrl/recommend-route');
       final response = await http.post(
         Uri.parse('$baseUrl/recommend-route'),
         headers: {'Content-Type': 'application/json'},
@@ -43,14 +47,44 @@ class RunCoachService {
         }),
       );
 
+      print('📋 RunCoachService: Response status: ${response.statusCode}');
+      print('📋 RunCoachService: Response length: ${response.body.length} chars');
+      print('📋 RunCoachService: Full Response Body:');
+      print('=' * 80);
+      print(response.body);
+      print('=' * 80);
+
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return RouteRecommendation.fromJson(data);
+        print('✅ RunCoachService: Parsing JSON response...');
+        try {
+          final data = json.decode(response.body);
+          print('🔍 RunCoachService: Response data keys: ${data.keys}');
+          print('🔍 RunCoachService: Route data type: ${data['route']?.runtimeType}');
+          print('🔍 RunCoachService: Route keys: ${data['route']?.keys}');
+          if (data['route'] != null && data['route']['geometry'] != null) {
+            print('🔍 RunCoachService: Geometry type: ${data['route']['geometry'].runtimeType}');
+            print('🔍 RunCoachService: Geometry length: ${data['route']['geometry']?.length}');
+          }
+          if (data['route'] != null && data['route']['segments'] != null) {
+            print('🔍 RunCoachService: Segments type: ${data['route']['segments'].runtimeType}');
+            print('🔍 RunCoachService: Segments length: ${data['route']['segments']?.length}');
+          }
+          final recommendation = RouteRecommendation.fromJson(data);
+          print('✅ RunCoachService: Route recommendation parsed successfully');
+          return recommendation;
+        } catch (e, stackTrace) {
+          print('❌ RunCoachService: JSON parsing error: $e');
+          print('❌ RunCoachService: Stack trace: $stackTrace');
+          print('❌ RunCoachService: Response body preview: ${response.body.substring(0, response.body.length > 1000 ? 1000 : response.body.length)}');
+          throw e;
+        }
       } else {
+        print('❌ RunCoachService: HTTP error ${response.statusCode}: ${response.body}');
         throw Exception('Failed to get route recommendation: ${response.body}');
       }
     } catch (e) {
-      print('Error getting route recommendation: $e');
+      print('❌ RunCoachService: Exception in getRouteRecommendation: $e');
+      print('🔄 RunCoachService: Falling back to mock data');
       // Return mock data for development
       return _getMockRouteRecommendation();
     }
@@ -134,13 +168,21 @@ class RunCoachService {
       );
 
       if (response.statusCode == 200) {
+        print('📊 PollutionHeatmap: Response received, length: ${response.body.length}');
+        print('📊 PollutionHeatmap: Full Response Body:');
+        print('=' * 60);
+        print(response.body);
+        print('=' * 60);
+
         final data = json.decode(response.body);
+        print('📊 PollutionHeatmap: JSON keys: ${data.keys}');
         return PollutionHeatmap.fromJson(data);
       } else {
         throw Exception('Failed to get pollution heatmap: ${response.body}');
       }
     } catch (e) {
-      print('Error getting pollution heatmap: $e');
+      print('❌ Error getting pollution heatmap: $e');
+      print('❌ Stack trace: ${StackTrace.current}');
       // Return null for optional heatmap
       throw e;
     }
@@ -153,13 +195,13 @@ class RunCoachService {
         id: 'mock_route_1',
         polyline: 'mock_polyline',
         geometry: [
-          [37.7749, -122.4194],
-          [37.7751, -122.4180],
-          [37.7755, -122.4170],
-          [37.7760, -122.4165],
-          [37.7758, -122.4155],
-          [37.7752, -122.4150],
-          [37.7749, -122.4194],
+          [29.7174, -95.4018], // Rice University, Houston, Texas
+          [29.7180, -95.4010],
+          [29.7185, -95.4005],
+          [29.7190, -95.4000],
+          [29.7188, -95.3995],
+          [29.7182, -95.3990],
+          [29.7174, -95.4018],
         ],
         distanceM: 5200,
         durationMin: 28,
@@ -172,8 +214,8 @@ class RunCoachService {
         elevationProfile: [10, 12, 15, 20, 25, 20, 15, 10],
         segments: [
           RouteSegment(
-            startPoint: [37.7749, -122.4194],
-            endPoint: [37.7751, -122.4180],
+            startPoint: [29.7174, -95.4018],
+            endPoint: [29.7180, -95.4010],
             distanceM: 150,
             aqi: 38,
             pm25: 12.5,

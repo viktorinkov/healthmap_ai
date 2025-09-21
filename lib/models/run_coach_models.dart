@@ -32,28 +32,119 @@ class RunRoute {
   });
 
   factory RunRoute.fromJson(Map<String, dynamic> json) {
-    return RunRoute(
-      id: json['id'],
-      polyline: json['polyline'],
-      geometry: (json['geometry'] as List?)
-          ?.map((point) => (point as List).map((e) => e.toDouble()).toList().cast<double>())
-          .toList().cast<List<double>>() ?? [],
-      distanceM: json['distance_m'].toDouble(),
-      durationMin: json['duration_min'].toDouble(),
-      elevationGainM: json['elevation_gain_m'].toDouble(),
-      avgAqi: json['avg_aqi'].toDouble(),
-      maxAqi: json['max_aqi'].toDouble(),
-      exposureScore: json['exposure_score'].toDouble(),
-      greenCoverage: json['green_coverage'].toDouble(),
-      safetyScore: json['safety_score'].toDouble(),
-      elevationProfile: (json['elevation_profile'] as List?)
-          ?.map((e) => e.toDouble())
-          .toList()
-          .cast<double>(),
-      segments: (json['segments'] as List)
-          .map((s) => RouteSegment.fromJson(s))
-          .toList(),
-    );
+    try {
+      print('🔍 RunRoute.fromJson: Parsing JSON: ${json.keys}');
+
+      // Check for geometry field first
+      List<List<double>> geometry;
+      if (json['geometry'] != null) {
+        print('🔍 geometry type: ${json['geometry'].runtimeType}');
+        print('🔍 geometry value: ${json['geometry']}');
+        geometry = _parseGeometry(json['geometry']);
+      } else {
+        print('⚠️ No geometry field found, extracting from segments');
+        geometry = _extractGeometryFromSegments(json['segments']);
+      }
+
+      return RunRoute(
+        id: json['id']?.toString() ?? 'unknown',
+        polyline: json['polyline']?.toString() ?? '',
+        geometry: geometry,
+        distanceM: (json['distance_m'] ?? 0).toDouble(),
+        durationMin: (json['duration_min'] ?? 0).toDouble(),
+        elevationGainM: (json['elevation_gain_m'] ?? 0).toDouble(),
+        avgAqi: (json['avg_aqi'] ?? 0).toDouble(),
+        maxAqi: (json['max_aqi'] ?? 0).toDouble(),
+        exposureScore: (json['exposure_score'] ?? 0).toDouble(),
+        greenCoverage: (json['green_coverage'] ?? 0).toDouble(),
+        safetyScore: (json['safety_score'] ?? 0).toDouble(),
+        elevationProfile: _parseElevationProfile(json['elevation_profile']),
+        segments: _parseSegments(json['segments']),
+      );
+    } catch (e) {
+      print('❌ RunRoute.fromJson error: $e');
+      print('❌ JSON data: $json');
+      rethrow;
+    }
+  }
+
+  static List<List<double>> _parseGeometry(dynamic geometry) {
+    if (geometry == null) return [];
+    if (geometry is List) {
+      try {
+        return geometry
+            .map((point) => (point as List).map((e) => (e as num).toDouble()).toList())
+            .toList().cast<List<double>>();
+      } catch (e) {
+        print('❌ Error parsing geometry: $e');
+        return [];
+      }
+    }
+    print('❌ Unexpected geometry type: ${geometry.runtimeType}');
+    return [];
+  }
+
+  static List<double>? _parseElevationProfile(dynamic profile) {
+    if (profile == null) return null;
+    if (profile is List) {
+      try {
+        return profile.map((e) => (e as num).toDouble()).toList().cast<double>();
+      } catch (e) {
+        print('❌ Error parsing elevation profile: $e');
+        return null;
+      }
+    }
+    return null;
+  }
+
+  static List<RouteSegment> _parseSegments(dynamic segments) {
+    if (segments == null) return [];
+    if (segments is List) {
+      try {
+        return segments.map((s) => RouteSegment.fromJson(s)).toList().cast<RouteSegment>();
+      } catch (e) {
+        print('❌ Error parsing segments: $e');
+        return [];
+      }
+    }
+    return [];
+  }
+
+  static List<List<double>> _extractGeometryFromSegments(dynamic segments) {
+    if (segments == null || segments is! List) return [];
+
+    List<List<double>> geometry = [];
+    try {
+      for (var segment in segments) {
+        if (segment is Map<String, dynamic>) {
+          // Add start point
+          if (segment['start'] != null) {
+            final start = RouteSegment._parsePoint(segment['start']);
+            if (start.isNotEmpty) geometry.add(start);
+          }
+          // Add end point
+          if (segment['end'] != null) {
+            final end = RouteSegment._parsePoint(segment['end']);
+            if (end.isNotEmpty) geometry.add(end);
+          }
+        }
+      }
+
+      // Remove duplicates while preserving order
+      final Set<String> seen = {};
+      geometry = geometry.where((point) {
+        final key = '${point[0]},${point[1]}';
+        if (seen.contains(key)) return false;
+        seen.add(key);
+        return true;
+      }).toList();
+
+      print('🔧 Extracted ${geometry.length} geometry points from ${segments.length} segments');
+      return geometry;
+    } catch (e) {
+      print('❌ Error extracting geometry from segments: $e');
+      return [];
+    }
   }
 
   double get distanceKm => distanceM / 1000;
@@ -77,14 +168,33 @@ class RouteSegment {
   });
 
   factory RouteSegment.fromJson(Map<String, dynamic> json) {
-    return RouteSegment(
-      startPoint: (json['start'] as List).map((e) => e.toDouble()).toList().cast<double>(),
-      endPoint: (json['end'] as List).map((e) => e.toDouble()).toList().cast<double>(),
-      distanceM: json['distance_m'].toDouble(),
-      aqi: json['aqi'].toDouble(),
-      pm25: json['pm25'].toDouble(),
-      recommendedPace: json['recommended_pace'],
-    );
+    try {
+      return RouteSegment(
+        startPoint: _parsePoint(json['start_point'] ?? json['start']),
+        endPoint: _parsePoint(json['end_point'] ?? json['end']),
+        distanceM: (json['distance_m'] ?? 0).toDouble(),
+        aqi: (json['aqi'] ?? 0).toDouble(),
+        pm25: (json['pm25'] ?? 0).toDouble(),
+        recommendedPace: json['recommended_pace']?.toString() ?? 'moderate',
+      );
+    } catch (e) {
+      print('❌ RouteSegment.fromJson error: $e');
+      print('❌ JSON data: $json');
+      rethrow;
+    }
+  }
+
+  static List<double> _parsePoint(dynamic point) {
+    if (point == null) return [0.0, 0.0];
+    if (point is List) {
+      try {
+        return point.map((e) => (e as num).toDouble()).toList().cast<double>();
+      } catch (e) {
+        print('❌ Error parsing point: $e');
+        return [0.0, 0.0];
+      }
+    }
+    return [0.0, 0.0];
   }
 }
 
@@ -178,20 +288,63 @@ class PollutionHeatmap {
   });
 
   factory PollutionHeatmap.fromJson(Map<String, dynamic> json) {
-    return PollutionHeatmap(
-      bounds: Map<String, double>.from(json['bounds']),
-      values: (json['values'] as List)
-          .map((row) => (row as List).map((e) => e.toDouble()).toList().cast<double>())
-          .toList()
-          .cast<List<double>>(),
-      uncertainty: (json['uncertainty'] as List)
-          .map((row) => (row as List).map((e) => e.toDouble()).toList().cast<double>())
-          .toList()
-          .cast<List<double>>(),
-      resolution: json['resolution'],
-      pollutant: json['pollutant'],
-      timestamp: json['timestamp'],
-    );
+    try {
+      print('🔍 PollutionHeatmap.fromJson: JSON keys: ${json.keys}');
+      print('🔍 bounds type: ${json['bounds'].runtimeType}');
+      print('🔍 bounds value: ${json['bounds']}');
+
+      // Handle bounds conversion safely
+      Map<String, double> bounds = {};
+      if (json['bounds'] is Map) {
+        final boundsMap = json['bounds'] as Map<String, dynamic>;
+        bounds = boundsMap.map((key, value) =>
+          MapEntry(key.toString(), (value as num).toDouble())
+        );
+      }
+
+      // Handle values array safely
+      List<List<double>> values = [];
+      if (json['values'] is List) {
+        values = (json['values'] as List)
+            .map((row) {
+              if (row is List) {
+                return row.map((e) => (e as num).toDouble()).toList().cast<double>();
+              }
+              return <double>[];
+            })
+            .toList()
+            .cast<List<double>>();
+      }
+
+      // Handle uncertainty array safely
+      List<List<double>> uncertainty = [];
+      if (json['uncertainty'] is List) {
+        uncertainty = (json['uncertainty'] as List)
+            .map((row) {
+              if (row is List) {
+                return row.map((e) => (e as num).toDouble()).toList().cast<double>();
+              }
+              return <double>[];
+            })
+            .toList()
+            .cast<List<double>>();
+      }
+
+      print('✅ PollutionHeatmap parsed: ${bounds.length} bounds, ${values.length}x${values.isNotEmpty ? values[0].length : 0} values');
+
+      return PollutionHeatmap(
+        bounds: bounds,
+        values: values,
+        uncertainty: uncertainty,
+        resolution: json['resolution'] ?? 0,
+        pollutant: json['pollutant'] ?? '',
+        timestamp: json['timestamp'],
+      );
+    } catch (e) {
+      print('❌ PollutionHeatmap.fromJson error: $e');
+      print('❌ JSON data: $json');
+      rethrow;
+    }
   }
 }
 
@@ -207,12 +360,27 @@ class RouteRecommendation {
   });
 
   factory RouteRecommendation.fromJson(Map<String, dynamic> json) {
-    return RouteRecommendation(
-      route: RunRoute.fromJson(json['route']),
-      timeWindows: (json['time_windows'] as List)
-          .map((w) => TimeWindow.fromJson(w))
-          .toList(),
-      healthRecommendation: json['health_recommendation'],
-    );
+    try {
+      print('🔍 RouteRecommendation.fromJson: JSON keys: ${json.keys}');
+
+      // Merge segments from top level into route data
+      final routeData = Map<String, dynamic>.from(json['route']);
+      if (json['segments'] != null) {
+        print('🔧 Adding segments from top level: ${(json['segments'] as List).length} segments');
+        routeData['segments'] = json['segments'];
+      }
+
+      return RouteRecommendation(
+        route: RunRoute.fromJson(routeData),
+        timeWindows: (json['time_windows'] as List)
+            .map((w) => TimeWindow.fromJson(w))
+            .toList(),
+        healthRecommendation: json['health_recommendation'],
+      );
+    } catch (e) {
+      print('❌ RouteRecommendation.fromJson error: $e');
+      print('❌ JSON data: $json');
+      rethrow;
+    }
   }
 }

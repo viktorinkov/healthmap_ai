@@ -105,7 +105,8 @@ class RouteGenerator:
                     waypoints=[waypoint1, waypoint2],
                     mode="walking",
                     alternatives=False,
-                    optimize_waypoints=True
+                    optimize_waypoints=True,
+                    avoid=["highways", "tolls", "ferries"]
                 )
                 
                 if result:
@@ -148,7 +149,8 @@ class RouteGenerator:
                     origin=start,
                     destination=destination,
                     mode="walking",
-                    alternatives=True
+                    alternatives=True,
+                    avoid=["highways", "tolls", "ferries"]
                 )
                 
                 for route_option in result[:2]:  # Take up to 2 alternatives
@@ -205,7 +207,8 @@ class RouteGenerator:
                         destination=start,
                         waypoints=waypoints,
                         mode="walking",
-                        optimize_waypoints=True
+                        optimize_waypoints=True,
+                        avoid=["highways", "tolls", "ferries"]
                     )
                     
                     if result:
@@ -284,11 +287,39 @@ class RouteGenerator:
     def _estimate_green_coverage(self, geometry: List[Tuple[float, float]]) -> float:
         """
         Estimate percentage of route through green spaces
-        Note: This would use Places API to check proximity to parks
+        Uses Places API to check proximity to parks along the route
         """
-        # Simplified estimation
-        # Real implementation would check each segment against park boundaries
-        return np.random.uniform(0.1, 0.7)  # Placeholder
+        if not geometry or len(geometry) < 2:
+            return 0.0
+
+        # Sample points along the route (every 10th point to avoid too many API calls)
+        sample_points = geometry[::max(1, len(geometry)//10)]
+        if len(sample_points) < 2:
+            sample_points = [geometry[0], geometry[-1]]
+
+        green_segments = 0
+        total_segments = len(sample_points)
+
+        # Check each sample point for nearby parks
+        for point in sample_points:
+            try:
+                parks = self.gmaps.places_nearby(
+                    location=point,
+                    radius=100,  # 100m radius for green space detection
+                    type='park'
+                )
+
+                # If parks found within 100m, consider this segment "green"
+                if parks.get('results'):
+                    green_segments += 1
+
+            except Exception as e:
+                logger.warning(f"Error checking green coverage at {point}: {e}")
+                continue
+
+        # Return percentage of green segments
+        green_percentage = green_segments / total_segments if total_segments > 0 else 0.0
+        return min(green_percentage, 1.0)  # Cap at 100%
         
     def _calculate_safety_score(self, geometry: List[Tuple[float, float]]) -> float:
         """
