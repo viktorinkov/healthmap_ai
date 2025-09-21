@@ -113,7 +113,7 @@ class RouteDetailsCard extends StatelessWidget {
             const SizedBox(height: 12),
             
             // Additional route features
-            Row(
+            Wrap(
               children: [
                 _RouteFeature(
                   icon: Icons.park,
@@ -383,7 +383,7 @@ class HealthRiskCard extends StatelessWidget {
                 color: riskColor.withAlpha(51),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
+              child: Wrap(
                 children: [
                   Icon(
                     Icons.favorite,
