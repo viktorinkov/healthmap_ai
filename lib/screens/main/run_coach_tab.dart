@@ -330,21 +330,23 @@ class _RunCoachTabState extends State<RunCoachTab> {
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'AI Run Coach',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Optimized routes for cleaner air and better health',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withAlpha(180),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'AI Run Coach',
+              style: Theme.of(context).textTheme.headlineMedium,
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Optimized routes for cleaner air and better health',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withAlpha(180),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

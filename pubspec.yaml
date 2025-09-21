@@ -49,6 +49,9 @@ dependencies:
   # Location services
   location: ^5.0.3
 
+  # Markdown rendering for chat messages
+  flutter_markdown: ^0.6.18
+
   # WebView for visualizations
   webview_flutter: ^4.4.0
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:location/location.dart';
 import '../../models/user_health_profile.dart';
 import '../../models/air_quality.dart';
@@ -529,14 +530,49 @@ Now respond to user questions with this comprehensive, expert-level context in m
                               : Theme.of(context).colorScheme.surfaceContainer,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          message['content'],
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: isUser
-                                ? Theme.of(context).colorScheme.onPrimary
-                                : Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
+                        child: isUser
+                            ? Text(
+                                message['content'],
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.onPrimary,
+                                ),
+                              )
+                            : MarkdownBody(
+                                data: message['content'],
+                                styleSheet: MarkdownStyleSheet(
+                                  p: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                  h1: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  h2: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  h3: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  strong: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                  em: TextStyle(
+                                    fontStyle: FontStyle.italic,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                  code: TextStyle(
+                                    fontFamily: 'monospace',
+                                    backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                  listBullet: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                ),
+                              ),
                       ),
                     ),
                     if (isUser) ...[

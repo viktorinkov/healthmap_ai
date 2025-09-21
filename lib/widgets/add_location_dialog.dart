@@ -164,7 +164,7 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
                           ),
                         )
                       : const Icon(Icons.add_rounded),
-                    label: Text(_isSaving ? 'Saving...' : 'Add Location'),
+                    label: Text(_isSaving ? 'Saving...' : 'Add'),
                   ),
                 ],
               ),
