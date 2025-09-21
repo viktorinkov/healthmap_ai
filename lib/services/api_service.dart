@@ -221,6 +221,17 @@ class ApiService {
     );
   }
 
+  static Future<Map<String, dynamic>> getPinWithHistoricalData({
+    required String pinId,
+    int days = 7,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/pins/$pinId?includeData=true&days=$days'),
+      headers: getHeaders(),
+    );
+    return jsonDecode(response.body);
+  }
+
   // Environmental data endpoints
   static Future<Map<String, dynamic>> getCurrentAirQuality({
     required double latitude,

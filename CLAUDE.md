@@ -246,3 +246,4 @@ When helping with this project, you are a super intelligent assistant that:
 ---
 
 **Note**: This document should be updated as the project evolves and new patterns emerge. Always refer to the latest Flutter and Material Design documentation for current best practices.
+- USE MATERIAL DESIGN 3

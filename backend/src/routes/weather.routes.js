@@ -75,6 +75,41 @@ router.get('/forecast',
   }
 );
 
+// Get historical weather data for coordinates (no authentication required)
+router.get('/historical',
+  [
+    query('lat').isFloat({ min: -90, max: 90 }),
+    query('lon').isFloat({ min: -180, max: 180 }),
+    query('days').optional().isInt({ min: 1, max: 30 })
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { lat, lon, days } = req.query;
+      const latitude = parseFloat(lat);
+      const longitude = parseFloat(lon);
+      const daysBack = parseInt(days) || 7;
+
+      // Get actual historical weather data from Google Weather API
+      const historicalData = await weatherService.getHistoricalWeatherByCoordinates(latitude, longitude, daysBack);
+
+      if (!historicalData || historicalData.length === 0) {
+        return res.json({
+          error: 'Historical weather data not available for this location'
+        });
+      }
+
+      res.json(historicalData);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Get weather history for a pin
 router.get('/history/:pinId',
   authMiddleware,

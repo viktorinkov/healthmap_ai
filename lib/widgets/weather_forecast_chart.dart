@@ -414,7 +414,7 @@ class WeatherForecastChart extends StatelessWidget {
   }) {
     final calculatedMaxY = maxY ?? spots.map((s) => s.y).reduce((a, b) => a > b ? a : b) * 1.1;
     final calculatedMinY = minY ?? spots.map((s) => s.y).reduce((a, b) => a < b ? a : b) * 0.9;
-    final calculatedInterval = interval ?? (calculatedMaxY - calculatedMinY) / 5;
+    final calculatedInterval = interval ?? ((calculatedMaxY - calculatedMinY) / 5).clamp(1.0, double.infinity);
 
     return SizedBox(
       height: 150,

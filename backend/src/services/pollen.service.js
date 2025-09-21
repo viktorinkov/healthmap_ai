@@ -133,7 +133,7 @@ class PollenService {
     };
   }
 
-  // Transform pollen forecast data
+  // Transform pollen forecast data - return in format expected by frontend
   transformPollenForecast(data) {
     if (!data.dailyInfo || data.dailyInfo.length === 0) {
       return {
@@ -141,38 +141,37 @@ class PollenService {
       };
     }
 
-    const daily = data.dailyInfo.map(day => {
-      const pollenTypes = day.pollenTypeInfo || [];
+    // Transform Google API format to simple format expected by frontend
+    return {
+      daily: data.dailyInfo.map(day => {
+        const pollenTypes = day.pollenTypeInfo || [];
 
-      const treePollen = pollenTypes
-        .filter(p => p.displayName?.toLowerCase().includes('tree'))
-        .reduce((sum, p) => sum + (p.indexInfo?.value || 0), 0);
+        // Calculate pollen levels by type
+        const treePollen = pollenTypes
+          .filter(p => p.displayName?.toLowerCase().includes('tree'))
+          .reduce((sum, p) => sum + (p.indexInfo?.value || 0), 0);
 
-      const grassPollen = pollenTypes
-        .filter(p => p.displayName?.toLowerCase().includes('grass'))
-        .reduce((sum, p) => sum + (p.indexInfo?.value || 0), 0);
+        const grassPollen = pollenTypes
+          .filter(p => p.displayName?.toLowerCase().includes('grass'))
+          .reduce((sum, p) => sum + (p.indexInfo?.value || 0), 0);
 
-      const weedPollen = pollenTypes
-        .filter(p => p.displayName?.toLowerCase().includes('weed') || p.displayName?.toLowerCase().includes('ragweed'))
-        .reduce((sum, p) => sum + (p.indexInfo?.value || 0), 0);
+        const weedPollen = pollenTypes
+          .filter(p => p.displayName?.toLowerCase().includes('weed') || p.displayName?.toLowerCase().includes('ragweed'))
+          .reduce((sum, p) => sum + (p.indexInfo?.value || 0), 0);
 
-      const maxPollen = Math.max(treePollen, grassPollen, weedPollen);
+        const maxPollen = Math.max(treePollen, grassPollen, weedPollen);
 
-      return {
-        date: day.date,
-        treePollen,
-        grassPollen,
-        weedPollen,
-        overallRisk: this.getPollenRisk(maxPollen),
-        plants: pollenTypes.map(p => ({
-          name: p.displayName,
-          level: p.indexInfo?.value || 0,
-          category: p.indexInfo?.category || 'None'
-        }))
-      };
-    });
-
-    return { daily };
+        return {
+          date: typeof day.date === 'string' ? day.date : `${day.date.year}-${String(day.date.month).padStart(2, '0')}-${String(day.date.day).padStart(2, '0')}`,
+          risk: this.getPollenRisk(maxPollen),
+          levels: {
+            tree: treePollen,
+            grass: grassPollen,
+            weed: weedPollen
+          }
+        };
+      })
+    };
   }
 
   // Get pollen risk level based on index

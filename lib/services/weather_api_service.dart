@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import '../models/weather_data.dart';
 import '../models/air_quality.dart';
 import 'api_service.dart';
-import 'google_weather_api_service.dart';
 
 // Temporary models for backward compatibility until Google Weather API is implemented
 class AirQualityForecast {
@@ -39,38 +38,37 @@ class PollenData {
   });
 
   factory PollenData.fromJson(Map<String, dynamic> json) {
+    DateTime date;
+    if (json['date'] is String) {
+      date = DateTime.parse(json['date']);
+    } else if (json['date'] is Map) {
+      final dateObj = json['date'];
+      date = DateTime(dateObj['year'], dateObj['month'], dateObj['day']);
+    } else {
+      date = DateTime.now();
+    }
+
     return PollenData(
-      date: DateTime.parse(json['date']),
+      date: date,
       risk: json['risk'] ?? 'Low',
-      levels: Map<String, double>.from(json['levels'] ?? {}),
+      levels: (json['levels'] as Map<String, dynamic>? ?? {}).map(
+        (key, value) => MapEntry(key, (value as num).toDouble()),
+      ),
     );
   }
 }
 
 class WeatherApiService {
-  // Get current weather data - now using Google Weather API
+  // Get current weather data - using backend API only
   static Future<WeatherData?> getCurrentWeather(
     double latitude,
     double longitude, {
     String? locationName,
   }) async {
-    // Try Google Weather API first
-    final googleWeatherData = await GoogleWeatherApiService.getCurrentWeather(
-      latitude,
-      longitude,
-      locationName: locationName,
-    );
-
-    if (googleWeatherData != null) {
-      return googleWeatherData;
-    }
-
-    // Fallback to backend API if Google Weather API fails
-    debugPrint('Google Weather API failed, falling back to backend API');
     return _getCurrentWeatherFromBackend(latitude, longitude);
   }
 
-  // Fallback method using backend API
+  // Get current weather from backend API
   static Future<WeatherData?> _getCurrentWeatherFromBackend(
     double latitude,
     double longitude,
@@ -120,31 +118,17 @@ class WeatherApiService {
     }
   }
 
-  // Get weather forecast - now using Google Weather API
+  // Get weather forecast - using backend API only
   static Future<WeatherForecast?> getWeatherForecast(
     double latitude,
     double longitude, {
     String? locationName,
     int days = 10,
   }) async {
-    // Try Google Weather API first
-    final googleForecastData = await GoogleWeatherApiService.getWeatherForecast(
-      latitude,
-      longitude,
-      locationName: locationName,
-      days: days,
-    );
-
-    if (googleForecastData != null) {
-      return googleForecastData;
-    }
-
-    // Fallback to backend API if Google Weather API fails
-    debugPrint('Google Weather API forecast failed, falling back to backend API');
     return _getWeatherForecastFromBackend(latitude, longitude, days);
   }
 
-  // Fallback method using backend API
+  // Get weather forecast from backend API
   static Future<WeatherForecast?> _getWeatherForecastFromBackend(
     double latitude,
     double longitude,
@@ -242,10 +226,10 @@ class WeatherApiService {
     int days = 7,
   }) async {
     try {
-      // First, try to get from the demo endpoint (for testing)
+      // Get historical weather data from backend - this should return actual historical data from Google Weather API
       final response = await http.get(
         Uri.parse(
-          '${ApiService.baseUrl}/weather/demo/history?lat=$latitude&lon=$longitude&days=$days',
+          '${ApiService.baseUrl}/weather/historical?lat=$latitude&lon=$longitude&days=$days',
         ),
         headers: ApiService.getHeaders(includeAuth: false),
       );
@@ -253,32 +237,39 @@ class WeatherApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         debugPrint('Weather Historical API Response received');
+
+        // Check if response indicates no data available
+        if (data == null || (data is Map && data['error'] != null)) {
+          debugPrint('Historical weather data not available: ${data?['error'] ?? 'Unknown error'}');
+          return null;
+        }
+
         final List<WeatherData> historicalData = [];
 
-        // Handle both array directly or wrapped in 'history' key
-        final historyList = data is List ? data : (data['history'] ?? data);
+        // Handle both array directly or wrapped in 'data' key
+        final historyList = data is List ? data : (data['data'] ?? data);
 
         if (historyList != null && historyList is List) {
           for (final item in historyList) {
             historicalData.add(WeatherData(
               temperature: (item['temperature'] ?? 0.0).toDouble(),
-              feelsLike: (item['feels_like'] ?? item['feelsLike'] ?? item['temperature'] ?? 0.0).toDouble(),
+              feelsLike: (item['feelsLike'] ?? item['feels_like'] ?? item['temperature'] ?? 0.0).toDouble(),
               humidity: (item['humidity'] ?? 0.0).toDouble(),
               pressure: (item['pressure'] ?? 0.0).toDouble(),
-              windSpeed: (item['wind_speed'] ?? item['windSpeed'] ?? 0.0).toDouble(),
-              windDirection: (item['wind_direction'] ?? item['windDirection'] ?? 0.0).toDouble(),
-              uvIndex: (item['uv_index'] ?? item['uvIndex'] ?? 0.0).toDouble(),
-              visibility: (item['visibility'] ?? 10000.0).toDouble() * (item['visibility'] != null && item['visibility'] < 100 ? 1000 : 1), // Convert km to m if needed
-              cloudCover: (item['cloud_cover'] ?? item['cloudCover'] ?? 0.0).toDouble(),
-              dewPoint: (item['dew_point'] ?? item['dewPoint'] ?? 0.0).toDouble(),
+              windSpeed: (item['windSpeed'] ?? item['wind_speed'] ?? 0.0).toDouble(),
+              windDirection: (item['windDirection'] ?? item['wind_direction'] ?? 0.0).toDouble(),
+              uvIndex: (item['uvIndex'] ?? item['uv_index'] ?? 0.0).toDouble(),
+              visibility: (item['visibility'] ?? 10000.0).toDouble(),
+              cloudCover: (item['cloudCover'] ?? item['cloud_cover'] ?? 0.0).toDouble(),
+              dewPoint: (item['dewPoint'] ?? item['dew_point'] ?? 0.0).toDouble(),
               description: item['description'] ?? 'Unknown',
               icon: item['icon'] ?? '01d',
               timestamp: DateTime.parse(item['timestamp'] ?? DateTime.now().toIso8601String()),
-              heatWaveAlert: item['heat_wave_alert'] ?? _checkHeatWave((item['temperature'] ?? 0.0).toDouble()),
-              coldWaveAlert: item['cold_wave_alert'] ?? _checkColdWave((item['temperature'] ?? 0.0).toDouble()),
-              stagnationEvent: item['stagnation_event'] ?? _checkStagnation((item['wind_speed'] ?? item['windSpeed'] ?? 0.0).toDouble()),
-              precipitationIntensity: (item['precipitation_intensity'] ?? item['precipitationIntensity'])?.toDouble(),
-              precipitationType: item['precipitation_type'] ?? item['precipitationType'],
+              heatWaveAlert: item['heatWaveAlert'] ?? item['heat_wave_alert'] ?? _checkHeatWave((item['temperature'] ?? 0.0).toDouble()),
+              coldWaveAlert: item['coldWaveAlert'] ?? item['cold_wave_alert'] ?? _checkColdWave((item['temperature'] ?? 0.0).toDouble()),
+              stagnationEvent: item['stagnationEvent'] ?? item['stagnation_event'] ?? _checkStagnation((item['windSpeed'] ?? item['wind_speed'] ?? 0.0).toDouble()),
+              precipitationIntensity: (item['precipitationIntensity'] ?? item['precipitation_intensity'])?.toDouble(),
+              precipitationType: item['precipitationType'] ?? item['precipitation_type'],
             ));
           }
         }
@@ -343,7 +334,7 @@ class WeatherApiService {
     try {
       final response = await http.get(
         Uri.parse(
-          '${ApiService.baseUrl}/pollen/forecast?lat=$latitude&lon=$longitude',
+          '${ApiService.baseUrl}/weather/pollen/forecast?lat=$latitude&lon=$longitude',
         ),
         headers: ApiService.getHeaders(includeAuth: false),
       );

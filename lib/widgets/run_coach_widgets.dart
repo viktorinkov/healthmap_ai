@@ -28,11 +28,6 @@ class RouteDetailsCard extends StatelessWidget {
                   'Recommended Route',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
-                FilledButton.icon(
-                  onPressed: onNavigatePressed,
-                  icon: const Icon(Icons.navigation, size: 18),
-                  label: const Text('Navigate'),
-                ),
               ],
             ),
             const SizedBox(height: 16),

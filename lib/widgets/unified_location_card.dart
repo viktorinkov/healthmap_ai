@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/pinned_location.dart';
 import '../models/air_quality.dart';
+import '../models/weather_data.dart';
 import '../screens/charts/location_charts_screen.dart';
 import '../screens/charts/location_forecast_screen.dart';
 import '../screens/main/air_quality_details_screen.dart';
@@ -8,6 +9,7 @@ import '../screens/main/air_quality_details_screen.dart';
 class UnifiedLocationCard extends StatefulWidget {
   final PinnedLocation? location;
   final AirQualityData? airQuality;
+  final WeatherData? weatherData;
   final bool isCurrentLocation;
   final bool showFullDetails;
   final VoidCallback? onRefresh;
@@ -19,6 +21,7 @@ class UnifiedLocationCard extends StatefulWidget {
     Key? key,
     this.location,
     this.airQuality,
+    this.weatherData,
     this.isCurrentLocation = false,
     this.showFullDetails = false,
     this.onRefresh,
@@ -624,6 +627,7 @@ class _UnifiedLocationCardState extends State<UnifiedLocationCard> {
           builder: (context) => AirQualityDetailsScreen(
             airQuality: widget.airQuality!,
             locationName: locationName,
+            weatherData: widget.weatherData,
           ),
         ),
       );

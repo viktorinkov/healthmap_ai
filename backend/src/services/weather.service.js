@@ -613,7 +613,26 @@ class WeatherService {
     }
   }
 
-  // Get historical weather data for a pin
+  // Get historical weather data for coordinates using Google Weather API
+  async getHistoricalWeatherByCoordinates(latitude, longitude, days = 7) {
+    try {
+      // Google Weather API doesn't directly support historical data
+      // For now, return an error message indicating historical data is not available
+      // In a real implementation, you would need a different weather provider or database of historical data
+      console.log(`Historical weather data requested for lat: ${latitude}, lon: ${longitude}, days: ${days}`);
+
+      return {
+        error: 'Historical weather data not available from Google Weather API'
+      };
+    } catch (error) {
+      console.error('Error fetching historical weather data:', error);
+      return {
+        error: 'Historical weather data unavailable'
+      };
+    }
+  }
+
+  // Get historical weather data for a pin from stored data
   async getWeatherHistory(pinId, days = 7) {
     try {
       const history = await getAll(
@@ -624,46 +643,18 @@ class WeatherService {
         [pinId]
       );
 
-      // If no real data exists, return sample data for demo purposes
+      // If no real data exists, return null instead of fake data
       if (history.length === 0) {
-        return this.generateSampleWeatherHistory(days, pinId);
+        return null;
       }
 
       return history;
     } catch (error) {
       console.error('Error fetching weather history:', error);
-      // Return sample data as fallback
-      return this.generateSampleWeatherHistory(days, pinId);
+      return null;
     }
   }
 
-  generateSampleWeatherHistory(days = 7, pinId = 'demo') {
-    const sampleData = [];
-    const now = new Date();
-
-    for (let i = 0; i < days; i++) {
-      const timestamp = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
-      const baseTemp = 22 + (Math.random() * 10); // Temperature between 22-32°C
-      const baseHumidity = 50 + (Math.random() * 30); // Humidity between 50-80%
-      const baseUvIndex = 3 + (Math.random() * 7); // UV Index between 3-10
-
-      sampleData.push({
-        id: `sample_${i}`,
-        pin_id: pinId,
-        timestamp: timestamp.toISOString(),
-        temperature: Math.round(baseTemp * 10) / 10,
-        humidity: Math.round(baseHumidity),
-        pressure: Math.round((1010 + Math.random() * 20) * 10) / 10,
-        wind_speed: Math.round((5 + Math.random() * 15) * 10) / 10,
-        wind_direction: Math.round(Math.random() * 360),
-        uv_index: Math.round(baseUvIndex * 10) / 10,
-        visibility: Math.round((15 + Math.random() * 10) * 10) / 10,
-        description: 'Partly cloudy'
-      });
-    }
-
-    return sampleData;
-  }
 
   // Cache management
   async getFromCache(key) {

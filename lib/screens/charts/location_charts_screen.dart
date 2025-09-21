@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' as material;
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../models/pinned_location.dart';
@@ -5,8 +6,11 @@ import '../../models/air_quality.dart';
 import '../../models/weather_data.dart';
 import '../../services/air_quality_api_service.dart';
 import '../../services/weather_api_service.dart' as weather_service;
-import '../../widgets/weather_historical_chart.dart';
 import '../../widgets/weather_conditions_section.dart';
+import '../../widgets/weather_historical_chart.dart';
+import '../../widgets/pollen_historical_chart.dart';
+import '../../models/pollen_historical_data.dart';
+import '../../services/api_service.dart';
 
 class LocationChartsScreen extends StatefulWidget {
   final PinnedLocation location;
@@ -28,14 +32,18 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
   WeatherData? _currentWeather;
   List<WeatherData>? _weatherHistoricalData;
   bool _loadingWeatherHistorical = false;
+  List<PollenHistoricalData>? _pollenHistoricalData;
+  bool _loadingPollenHistorical = false;
 
   @override
   void initState() {
     super.initState();
+    debugPrint('🌸 LocationChartsScreen initState() - Loading historical data for: ${widget.location.name} (ID: ${widget.location.id})');
     _loadCurrentAirQuality();
     _loadHistoricalData();
     _loadCurrentWeather();
     _loadWeatherHistoricalData();
+    _loadPollenHistoricalData();
   }
 
   Future<void> _loadCurrentAirQuality() async {
@@ -187,12 +195,7 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
                         else
                           _buildNoHistoricalDataCard(),
 
-                        // Meteorological Conditions Section
                         const SizedBox(height: 24),
-                        if (_currentWeather != null) ...[
-                          WeatherConditionsSection(weatherData: _currentWeather!),
-                          const SizedBox(height: 24),
-                        ],
 
                         // Weather Historical Data
                         if (_loadingWeatherHistorical)
@@ -201,6 +204,27 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
                           WeatherHistoricalChart(historicalData: _weatherHistoricalData!)
                         else
                           _buildNoWeatherDataCard(),
+
+                        const SizedBox(height: 24),
+
+                        // Pollen Historical Data Section
+                        () {
+                          debugPrint('POLLEN UI: _loadingPollenHistorical: $_loadingPollenHistorical');
+                          debugPrint('POLLEN UI: _pollenHistoricalData is null: ${_pollenHistoricalData == null}');
+                          debugPrint('POLLEN UI: _pollenHistoricalData?.length: ${_pollenHistoricalData?.length}');
+                          debugPrint('POLLEN UI: _pollenHistoricalData?.isNotEmpty: ${_pollenHistoricalData?.isNotEmpty}');
+
+                          if (_loadingPollenHistorical) {
+                            debugPrint('POLLEN UI: Showing loading card');
+                            return _buildLoadingPollenCard();
+                          } else if (_pollenHistoricalData?.isNotEmpty == true) {
+                            debugPrint('POLLEN UI: Showing pollen charts');
+                            return _buildPollenHistoricalCharts();
+                          } else {
+                            debugPrint('POLLEN UI: Showing pollen unavailable section');
+                            return _buildPollenHistoricalSection();
+                          }
+                        }(),
                       ],
                     ),
                   ),
@@ -305,6 +329,7 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
         _loadingWeatherHistorical = true;
       });
 
+      // Try to get historical weather data from backend API
       final historicalData = await weather_service.WeatherApiService.getHistoricalWeather(
         widget.location.latitude,
         widget.location.longitude,
@@ -345,6 +370,50 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
       setState(() {
         _historicalData = null;
         _loadingHistorical = false;
+      });
+    }
+  }
+
+  Future<void> _loadPollenHistoricalData() async {
+    debugPrint('_loadPollenHistoricalData: Starting to load pollen historical data');
+    try {
+      setState(() {
+        _loadingPollenHistorical = true;
+      });
+      debugPrint('_loadPollenHistoricalData: Set loading state to true');
+
+      // Convert string ID to numeric ID for backend compatibility
+      String pinId = widget.location.id;
+      if (pinId == 'current_location') {
+        pinId = '1'; // Use the test pin we created
+      }
+      debugPrint('_loadPollenHistoricalData: Using pin ID: $pinId');
+
+      final pinData = await ApiService.getPinWithHistoricalData(
+        pinId: pinId,
+        days: 7,
+      );
+      debugPrint('_loadPollenHistoricalData: API call completed');
+
+      List<PollenHistoricalData>? pollenHistory;
+      if (pinData['history'] != null && pinData['history']['pollen'] != null) {
+        final pollenList = pinData['history']['pollen'] as List<dynamic>;
+        pollenHistory = pollenList.map((item) => PollenHistoricalData.fromJson(item as Map<String, dynamic>)).toList();
+        debugPrint('_loadPollenHistoricalData: Parsed ${pollenHistory.length} historical pollen records');
+      } else {
+        debugPrint('_loadPollenHistoricalData: No pollen history data in response');
+      }
+
+      setState(() {
+        _pollenHistoricalData = pollenHistory;
+        _loadingPollenHistorical = false;
+      });
+      debugPrint('_loadPollenHistoricalData: Set state completed. Historical data count: ${_pollenHistoricalData?.length ?? 0}');
+    } catch (e) {
+      debugPrint('_loadPollenHistoricalData: Error loading pollen historical data: $e');
+      setState(() {
+        _pollenHistoricalData = null;
+        _loadingPollenHistorical = false;
       });
     }
   }
@@ -519,6 +588,7 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
     );
   }
 
+
   Widget _buildLoadingWeatherCard() {
     return Card(
       child: Padding(
@@ -528,12 +598,12 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
             const CircularProgressIndicator(),
             const SizedBox(height: 16),
             Text(
-              'Loading Weather Data',
+              'Loading Weather History',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              'Fetching meteorological conditions...',
+              'Fetching historical weather data...',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -558,12 +628,12 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Weather Data Unavailable',
+              'Weather History Unavailable',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              'Meteorological data is not available for this location.',
+              'Historical weather data is not available for this location.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -573,6 +643,189 @@ class _LocationChartsScreenState extends State<LocationChartsScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildPollenHistoricalSection() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.local_florist,
+                size: 40,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Pollen Data Unavailable',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Pollen data is not available for this location at this time.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingPollenCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            CircularProgressIndicator(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Loading Pollen Data',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Fetching pollen forecast and historical data...',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPollenHistoricalCharts() {
+    debugPrint('Building pollen charts - historical data: ${_pollenHistoricalData != null}');
+    debugPrint('Historical data length: ${_pollenHistoricalData?.length ?? 0}');
+
+    if (_pollenHistoricalData == null || _pollenHistoricalData!.isEmpty) {
+      debugPrint('No pollen historical data available, showing unavailable message');
+      return _buildPollenHistoricalSection();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Pollen Historical Data',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Overall pollen index chart
+        _buildOverallPollenHistoricalChart(),
+        const SizedBox(height: 16),
+
+        // Individual pollen type charts
+        ..._buildIndividualPollenHistoricalCharts(),
+      ],
+    );
+  }
+
+  Widget _buildOverallPollenHistoricalChart() {
+    final spots = <FlSpot>[];
+    final dates = <DateTime>[];
+
+    for (int i = 0; i < _pollenHistoricalData!.length; i++) {
+      final data = _pollenHistoricalData![i];
+      dates.add(data.timestamp);
+      spots.add(FlSpot(i.toDouble(), data.overallPollenIndex.toDouble()));
+    }
+
+    return PollenHistoricalChart(
+      pollenType: 'Overall',
+      unit: 'Index',
+      spots: spots,
+      dates: dates,
+    );
+  }
+
+  List<Widget> _buildIndividualPollenHistoricalCharts() {
+    final charts = <Widget>[];
+    final pollenTypes = ['Tree', 'Grass', 'Weed'];
+
+    for (final pollenType in pollenTypes) {
+      final spots = <FlSpot>[];
+      final dates = <DateTime>[];
+      bool hasData = false;
+
+      for (int i = 0; i < _pollenHistoricalData!.length; i++) {
+        final data = _pollenHistoricalData![i];
+        int? value;
+
+        switch (pollenType) {
+          case 'Tree':
+            value = data.treePollen;
+            break;
+          case 'Grass':
+            value = data.grassPollen;
+            break;
+          case 'Weed':
+            value = data.weedPollen;
+            break;
+        }
+
+        dates.add(data.timestamp);
+        final pollenValue = (value ?? 0).toDouble();
+        spots.add(FlSpot(i.toDouble(), pollenValue));
+
+        if (pollenValue > 0) {
+          hasData = true;
+        }
+      }
+
+      if (hasData) {
+        charts.add(PollenHistoricalChart(
+          pollenType: pollenType,
+          unit: 'Index',
+          spots: spots,
+          dates: dates,
+        ));
+        charts.add(const SizedBox(height: 16));
+      }
+    }
+
+    return charts;
   }
 
   Widget _buildPollutantChart(String name, String unit, double Function(AirQualityData) valueExtractor) {
