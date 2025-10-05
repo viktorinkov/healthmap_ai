@@ -156,6 +156,6 @@ DATABASE_URL=postgresql://...
 - Decreased emergency room visits related to air quality
 
 ## 👥 Team
-Viktor Minchev
-Chanyeong Park 
+Viktor Minchev,
+Chanyeong Park,
 Abi Dahal
