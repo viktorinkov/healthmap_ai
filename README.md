@@ -155,29 +155,7 @@ DATABASE_URL=postgresql://...
 - Enhanced quality of life metrics
 - Decreased emergency room visits related to air quality
 
-## 🏆 Awards & Recognition
-*[Add any hackathon wins or recognition here]*
-
-## 🤝 Contributing
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
-## 📄 License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 👥 Team
-*[Add team member information here]*
-
-## 📞 Contact
-- Website: [healthmap-ai.com](https://healthmap-ai.com)
-- Email: contact@healthmap-ai.com
-- Twitter: [@HealthMapAI](https://twitter.com/healthmapai)
-
-## 🙏 Acknowledgments
-- U.S. Environmental Protection Agency for air quality data
-- NASA for wildfire monitoring capabilities
-- All our beta testers and early users
-- The open-source community
-
----
-
-**HealthMap AI** - *Empowering millions to breathe easier and live healthier through intelligent environmental health monitoring*
+Viktor Minchev
+Chanyeong Park 
+Abi Dahal
